@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playsee - 극단 공연 스케줄 관리</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <nav class="sidebar">
+            <div class="logo">
+                <h1>Playsee</h1>
+                <p>극단 관리 시스템</p>
+            </div>
+            
+            <div class="nav-menu">
+                <button class="nav-btn active" data-view="calendar">
+                    <span class="icon">📅</span>
+                    캘린더
+                </button>
+                <button class="nav-btn" data-view="performances">
+                    <span class="icon">🎭</span>
+                    공연 관리
+                </button>
+                <button class="nav-btn" data-view="members">
+                    <span class="icon">👥</span>
+                    단원 관리
+                </button>
+                <button class="nav-btn" data-view="schedules">
+                    <span class="icon">🗓️</span>
+                    스케줄 관리
+                </button>
+                <button class="nav-btn" data-view="assignment">
+                    <span class="icon">⚡</span>
+                    자동 배정
+                </button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div id="calendar-view" class="view active">
+                <div class="view-header">
+                    <h2>공연 캘린더</h2>
+                    <div class="calendar-controls">
+                        <div class="view-toggle">
+                            <button id="monthly-view-btn" class="btn btn-primary active">월간</button>
+                            <button id="weekly-view-btn" class="btn btn-secondary">주간</button>
+                        </div>
+                        <div class="navigation-controls">
+                            <button id="prev-period">◀</button>
+                            <span id="current-period"></span>
+                            <button id="next-period">▶</button>
+                            <button id="today-btn" class="btn btn-secondary">오늘</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="monthly-calendar" class="calendar-view-content active"></div>
+                <div id="weekly-calendar" class="calendar-view-content"></div>
+            </div>
+
+            <div id="performances-view" class="view">
+                <div class="view-header">
+                    <h2>공연 관리</h2>
+                    <button id="add-performance" class="btn btn-primary">공연 추가</button>
+                </div>
+                <div class="content-grid">
+                    <div id="performances-list" class="list-container"></div>
+                </div>
+            </div>
+
+            <div id="members-view" class="view">
+                <div class="view-header">
+                    <h2>단원 관리</h2>
+                    <button id="add-member" class="btn btn-primary">단원 추가</button>
+                </div>
+                <div class="content-grid">
+                    <div id="members-list" class="list-container"></div>
+                </div>
+            </div>
+
+            <div id="schedules-view" class="view">
+                <div class="view-header">
+                    <h2>스케줄 관리</h2>
+                    <button id="add-schedule" class="btn btn-primary">스케줄 추가</button>
+                </div>
+                <div class="content-grid">
+                    <div id="schedules-list" class="list-container"></div>
+                </div>
+            </div>
+
+            <div id="assignment-view" class="view">
+                <div class="view-header">
+                    <h2>자동 배정</h2>
+                    <div class="assignment-controls">
+                        <select id="assignment-month">
+                            <option value="">월 선택</option>
+                        </select>
+                        <button id="run-assignment" class="btn btn-primary">자동 배정 실행</button>
+                    </div>
+                </div>
+                <div class="assignment-content">
+                    <div id="assignment-results" class="results-container"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="js/performance.js"></script>
+    <script src="js/member.js"></script>
+    <script src="js/schedule.js"></script>
+    <script src="js/calendar.js"></script>
+    <script src="js/assignment.js"></script>
+</body>
+</html>
