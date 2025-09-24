@@ -856,3 +856,176 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     transform: translateY(-1px);
 }
+
+/* 주간 스케줄 표 스타일 */
+.weekly-schedule-table {
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.weekly-schedule-table h3 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #2c3e50;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.performance-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+    background: white;
+    border: 2px solid #34495e;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.performance-table th,
+.performance-table td {
+    border: 1px solid #bdc3c7;
+    padding: 12px 8px;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.performance-table th {
+    background: #34495e;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.performance-table .row-header {
+    background: #ecf0f1;
+    color: #2c3e50;
+    font-weight: bold;
+    width: 80px;
+    min-width: 80px;
+}
+
+.performance-table .schedule-cell {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    min-height: 60px;
+    max-width: 120px;
+    word-wrap: break-word;
+}
+
+.performance-table .schedule-cell:hover {
+    background-color: #f8f9fa;
+}
+
+.performance-table .schedule-cell[data-schedule-id] {
+    background-color: #fff3cd;
+}
+
+.performance-table .schedule-cell[data-schedule-id]:hover {
+    background-color: #ffeaa7;
+}
+
+.performance-table .schedule-cell u {
+    text-decoration: underline;
+    font-weight: bold;
+    color: #e74c3c;
+}
+
+/* 연습 일정 스타일 */
+.practice-schedule {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+}
+
+.practice-schedule h4 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.practice-content {
+    color: #7f8c8d;
+    font-style: italic;
+}
+
+/* 캘린더 뷰 컨테이너 */
+.calendar-view-content {
+    display: none;
+}
+
+.calendar-view-content.active {
+    display: block;
+}
+
+/* 수동 배정 모달 스타일 */
+.assignment-section {
+    margin-bottom: 25px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #f8f9fa;
+}
+
+.assignment-section h4 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 16px;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 5px;
+}
+
+/* 차량 배정 스타일 */
+.vehicle-assignment {
+    margin-bottom: 15px;
+    padding: 12px;
+    border: 1px solid #bdc3c7;
+    border-radius: 6px;
+    background: white;
+}
+
+.vehicle-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.form-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-group-inline label {
+    font-weight: bold;
+    color: #555;
+    min-width: 60px;
+    font-size: 13px;
+}
+
+.form-group-inline select {
+    min-width: 120px;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.remove-vehicle {
+    margin-left: auto;
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 12px;
+}
+
+#add-vehicle-btn {
+    margin-top: 10px;
+}

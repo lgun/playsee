@@ -2,7 +2,7 @@ class Calendar {
     constructor() {
         this.currentDate = new Date();
         this.schedules = [];
-        this.viewMode = 'monthly'; // 'monthly' or 'weekly'
+        this.viewMode = 'monthly';
         this.init();
     }
 
@@ -93,12 +93,13 @@ class Calendar {
             this.schedules = await window.app.dbAll(`
                 SELECT s.*, p.name as performance_name, p.roles as performance_roles,
                        GROUP_CONCAT(DISTINCT m.name || ':' || a.role) as assignments,
-                       driver.name as driver_name
+                       GROUP_CONCAT(DISTINCT sv.vehicle_type || ':' || COALESCE(driver.name, '')) as vehicle_info
                 FROM schedules s
                 LEFT JOIN performances p ON s.performance_id = p.id
                 LEFT JOIN assignments a ON s.id = a.schedule_id
                 LEFT JOIN members m ON a.member_id = m.id
-                LEFT JOIN members driver ON s.driver_id = driver.id
+                LEFT JOIN schedule_vehicles sv ON s.id = sv.schedule_id
+                LEFT JOIN members driver ON sv.driver_id = driver.id
                 WHERE ${whereClause}
                 GROUP BY s.id
                 ORDER BY s.call_time
@@ -227,101 +228,181 @@ class Calendar {
     renderWeeklyCalendar() {
         const container = document.getElementById('weekly-calendar');
         
-        // 현재 주의 시작일 계산
-        const startOfWeek = new Date(this.currentDate);
-        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+        // 월요일부터 토요일까지의 주간 계산 (일요일 제외)
+        const monday = new Date(this.currentDate);
+        monday.setDate(monday.getDate() - monday.getDay() + 1); // 월요일로 설정
         
-        // 주간 스케줄 테이블 생성
-        const weeklyTable = document.createElement('div');
-        weeklyTable.className = 'weekly-schedule';
+        const saturday = new Date(monday);
+        saturday.setDate(saturday.getDate() + 5); // 토요일까지
         
-        // 헤더 생성
-        const header = document.createElement('div');
-        header.className = 'weekly-header';
-        
-        const days = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-        
-        for (let i = 0; i < 7; i++) {
-            const dayDate = new Date(startOfWeek);
+        // 주간 스케줄들을 수집
+        const weekSchedules = [];
+        for (let i = 0; i < 6; i++) {
+            const dayDate = new Date(monday);
             dayDate.setDate(dayDate.getDate() + i);
-            
-            const dayHeader = document.createElement('div');
-            dayHeader.className = 'day-header';
-            if (this.isToday(dayDate)) {
-                dayHeader.classList.add('today');
-            }
-            
-            dayHeader.innerHTML = `
-                <div class="day-name">${days[i]}</div>
-                <div class="day-date">${dayDate.getDate()}</div>
-            `;
-            
-            header.appendChild(dayHeader);
-        }
-        
-        weeklyTable.appendChild(header);
-        
-        // 스케줄 내용 생성
-        const scheduleContent = document.createElement('div');
-        scheduleContent.className = 'weekly-content';
-        
-        for (let i = 0; i < 7; i++) {
-            const dayDate = new Date(startOfWeek);
-            dayDate.setDate(dayDate.getDate() + i);
-            
-            const dayColumn = document.createElement('div');
-            dayColumn.className = 'day-column';
-            
             const dateStr = this.formatDateForComparison(dayDate);
             const daySchedules = this.getSchedulesForDate(dateStr);
-            
-            if (daySchedules.length === 0) {
-                const emptyDiv = document.createElement('div');
-                emptyDiv.className = 'empty-day';
-                emptyDiv.textContent = '스케줄 없음';
-                dayColumn.appendChild(emptyDiv);
-            } else {
-                daySchedules.forEach(schedule => {
-                    const scheduleDiv = document.createElement('div');
-                    scheduleDiv.className = 'weekly-schedule-item';
-                    
-                    const equipmentList = schedule.equipment_list ? JSON.parse(schedule.equipment_list) : [];
-                    const equipmentStr = equipmentList.length > 0 ? equipmentList.join(', ') : '';
-                    
-                    const assignments = schedule.assignments ? 
-                        schedule.assignments.split(',').map(a => {
-                            const [name, role] = a.split(':');
-                            return `${name}(${role})`;
-                        }).join(', ') : '미배정';
-                    
-                    scheduleDiv.innerHTML = `
-                        <div class="schedule-title">${schedule.performance_name}</div>
-                        <div class="schedule-time">
-                            <div>📞 ${this.formatTime(schedule.call_time)}</div>
-                            <div>🎭 ${this.formatTime(schedule.start_time)}</div>
-                        </div>
-                        <div class="schedule-venue">📍 ${schedule.venue}</div>
-                        <div class="schedule-assignments">👥 ${assignments}</div>
-                        ${schedule.driver_name ? `<div class="schedule-driver">🚗 ${schedule.driver_name}</div>` : ''}
-                        ${schedule.vehicle_type ? `<div class="schedule-vehicle">🚐 ${schedule.vehicle_type}</div>` : ''}
-                        ${equipmentStr ? `<div class="schedule-equipment">📦 ${equipmentStr}</div>` : ''}
-                    `;
-                    
-                    scheduleDiv.addEventListener('click', () => {
-                        window.scheduleManager.showManualAssignModal(schedule.id);
-                    });
-                    
-                    dayColumn.appendChild(scheduleDiv);
-                });
-            }
-            
-            scheduleContent.appendChild(dayColumn);
+            weekSchedules.push(...daySchedules);
         }
         
-        weeklyTable.appendChild(scheduleContent);
+        // 공연별로 그룹화
+        const performanceGroups = {};
+        weekSchedules.forEach(schedule => {
+            if (!performanceGroups[schedule.performance_name]) {
+                performanceGroups[schedule.performance_name] = [];
+            }
+            performanceGroups[schedule.performance_name].push(schedule);
+        });
         
-        container.innerHTML = '';
-        container.appendChild(weeklyTable);
+        // 주간 일정표 생성
+        let weeklyHTML = `
+            <div class="weekly-schedule-table">
+                <h3>${monday.toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric' })} ~ ${saturday.toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric' })} 공연 일정표</h3>
+        `;
+        
+        // 각 공연별 테이블 생성
+        Object.entries(performanceGroups).forEach(([performanceName, schedules]) => {
+            weeklyHTML += this.generatePerformanceTable(performanceName, schedules, monday);
+        });
+        
+        // 연습 일정 추가 (임시로 빈 섹션 추가)
+        weeklyHTML += `
+                <div class="practice-schedule">
+                    <h4>연습(공지)</h4>
+                    <div class="practice-content">
+                        연습 일정이 없습니다.
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = weeklyHTML;
+        
+        // 클릭 이벤트 추가
+        container.querySelectorAll('.schedule-cell').forEach(cell => {
+            const scheduleId = cell.dataset.scheduleId;
+            if (scheduleId) {
+                cell.addEventListener('click', () => {
+                    window.scheduleManager.showManualAssignModal(parseInt(scheduleId));
+                });
+            }
+        });
+    }
+    
+    generatePerformanceTable(performanceName, schedules, monday) {
+        const days = ['월(Mon)', '화(Tue)', '수(Wed)', '목(Thu)', '금(Fri)', '토(Sat)'];
+        const dates = [];
+        const schedulesByDay = [{}, {}, {}, {}, {}, {}]; // 월~토
+        
+        // 날짜 배열 생성 및 스케줄 분류
+        for (let i = 0; i < 6; i++) {
+            const dayDate = new Date(monday);
+            dayDate.setDate(dayDate.getDate() + i);
+            dates.push(dayDate.getDate());
+            
+            const dateStr = this.formatDateForComparison(dayDate);
+            schedulesByDay[i] = schedules.filter(s => 
+                this.formatDateForComparison(new Date(s.call_time)) === dateStr
+            );
+        }
+        
+        let tableHTML = `
+            <table class="performance-table">
+                <thead>
+                    <tr>
+                        <th class="row-header">요일</th>
+                        ${days.map(day => `<th>${day}</th>`).join('')}
+                    </tr>
+                    <tr>
+                        <th class="row-header">일</th>
+                        ${dates.map(date => `<th>${date}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="row-header">공연</td>
+                        ${schedulesByDay.map((daySchedules, dayIndex) => {
+                            if (daySchedules.length === 0) {
+                                return '<td class="schedule-cell">-</td>';
+                            }
+                            
+                            // 같은 날에 같은 공연의 다른 시간대가 있는지 확인
+                            const timesByVenue = {};
+                            daySchedules.forEach(schedule => {
+                                if (!timesByVenue[schedule.venue]) {
+                                    timesByVenue[schedule.venue] = [];
+                                }
+                                timesByVenue[schedule.venue].push(this.formatTime(schedule.start_time));
+                            });
+                            
+                            const performanceInfo = Object.entries(timesByVenue).map(([venue, times]) => {
+                                const timeDisplay = times.length > 1 ? times.join(' / ') : times[0];
+                                return `${venue}<br/>${timeDisplay}<br/>${daySchedules[0].performance_name}`;
+                            }).join('<br/>');
+                            
+                            return `<td class="schedule-cell" data-schedule-id="${daySchedules[0].id}">${performanceInfo}</td>`;
+                        }).join('')}
+                    </tr>
+                    <tr>
+                        <td class="row-header">단원</td>
+                        ${schedulesByDay.map(daySchedules => {
+                            if (daySchedules.length === 0) {
+                                return '<td class="schedule-cell">-</td>';
+                            }
+                            
+                            const memberNames = daySchedules.flatMap(schedule => {
+                                if (!schedule.assignments) return [];
+                                return schedule.assignments.split(',').map(a => {
+                                    const [name, role] = a.split(':');
+                                    const firstName = name.split(' ').slice(-1)[0]; // 성 제외한 이름
+                                    const isDriver = schedule.driver_name && name === schedule.driver_name;
+                                    return isDriver ? `<u>${firstName}</u>` : firstName;
+                                });
+                            });
+                            
+                            return `<td class="schedule-cell">${memberNames.join(', ') || '-'}</td>`;
+                        }).join('')}
+                    </tr>
+                    <tr>
+                        <td class="row-header">물품</td>
+                        ${schedulesByDay.map(daySchedules => {
+                            if (daySchedules.length === 0) {
+                                return '<td class="schedule-cell">-</td>';
+                            }
+                            
+                            const equipmentSets = daySchedules.map(schedule => {
+                                const equipmentList = schedule.equipment_list ? JSON.parse(schedule.equipment_list) : [];
+                                return equipmentList.join(' / ');
+                            }).filter(eq => eq);
+                            
+                            return `<td class="schedule-cell">${equipmentSets.join('<br/>') || '-'}</td>`;
+                        }).join('')}
+                    </tr>
+                    <tr>
+                        <td class="row-header">출발</td>
+                        ${schedulesByDay.map(daySchedules => {
+                            if (daySchedules.length === 0) {
+                                return '<td class="schedule-cell">-</td>';
+                            }
+                            
+                            const departureInfo = daySchedules.map(schedule => {
+                                const callTime = new Date(schedule.call_time).toLocaleTimeString('en-US', { 
+                                    hour: 'numeric', 
+                                    minute: '2-digit', 
+                                    hour12: true 
+                                });
+                                const vehicle = schedule.vehicle_type || '미정';
+                                return `${callTime} / ${vehicle}`;
+                            });
+                            
+                            return `<td class="schedule-cell">${departureInfo.join('<br/>')}</td>`;
+                        }).join('')}
+                    </tr>
+                </tbody>
+            </table>
+        `;
+        
+        return tableHTML;
     }
 
     renderSchedules() {

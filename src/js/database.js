@@ -86,6 +86,15 @@ class Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (member_id) REFERENCES members (id) ON DELETE CASCADE,
                 UNIQUE(member_id, date)
+            )`,
+            `CREATE TABLE IF NOT EXISTS schedule_vehicles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                schedule_id INTEGER NOT NULL,
+                vehicle_type TEXT NOT NULL,
+                driver_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (schedule_id) REFERENCES schedules (id) ON DELETE CASCADE,
+                FOREIGN KEY (driver_id) REFERENCES members (id) ON DELETE SET NULL
             )`
         ];
 

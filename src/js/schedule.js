@@ -25,12 +25,13 @@ class ScheduleManager {
             this.schedules = await window.app.dbAll(`
                 SELECT s.*, p.name as performance_name, p.roles as performance_roles,
                        GROUP_CONCAT(DISTINCT m.name || ':' || a.role) as assignments,
-                       driver.name as driver_name
+                       GROUP_CONCAT(DISTINCT sv.vehicle_type || ':' || COALESCE(driver.name, '')) as vehicle_info
                 FROM schedules s
                 LEFT JOIN performances p ON s.performance_id = p.id
                 LEFT JOIN assignments a ON s.id = a.schedule_id
                 LEFT JOIN members m ON a.member_id = m.id
-                LEFT JOIN members driver ON s.driver_id = driver.id
+                LEFT JOIN schedule_vehicles sv ON s.id = sv.schedule_id
+                LEFT JOIN members driver ON sv.driver_id = driver.id
                 GROUP BY s.id
                 ORDER BY s.call_time DESC
             `);
@@ -69,6 +70,13 @@ class ScheduleManager {
             const equipmentList = schedule.equipment_list ? JSON.parse(schedule.equipment_list) : [];
             const equipmentStr = equipmentList.length > 0 ? equipmentList.join(', ') : '없음';
 
+            // 차량 정보 파싱
+            const vehicleInfo = schedule.vehicle_info ? 
+                schedule.vehicle_info.split(',').map(info => {
+                    const [vehicleType, driverName] = info.split(':');
+                    return driverName ? `${vehicleType}(${driverName})` : vehicleType;
+                }).join(', ') : '미정';
+
             return `
                 <div class="list-item" data-id="${schedule.id}">
                     <h3>${schedule.performance_name}</h3>
@@ -76,8 +84,7 @@ class ScheduleManager {
                     <p><strong>스타트타임:</strong> ${window.app.formatDateTime(schedule.start_time)}</p>
                     <p><strong>장소:</strong> ${schedule.venue}</p>
                     <p><strong>배정된 배우:</strong> ${assignments}</p>
-                    <p><strong>운전자:</strong> ${schedule.driver_name || '미정'}</p>
-                    <p><strong>차종:</strong> ${schedule.vehicle_type || '미정'}</p>
+                    <p><strong>차량 및 운전자:</strong> ${vehicleInfo}</p>
                     <p><strong>준비물품:</strong> ${equipmentStr}</p>
                     <p><strong>등록일:</strong> ${window.app.formatDateTime(schedule.created_at)}</p>
                     <div class="actions">
@@ -153,25 +160,6 @@ class ScheduleManager {
                 <div class="form-group">
                     <label for="venue">장소 *</label>
                     <input type="text" id="venue" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="driver-select">운전자</label>
-                    <select id="driver-select">
-                        <option value="">운전자를 선택하세요</option>
-                        ${memberOptions}
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="vehicle-select">차종</label>
-                    <select id="vehicle-select">
-                        <option value="">차종을 선택하세요</option>
-                        <option value="스타렉스">스타렉스</option>
-                        <option value="카니발">카니발</option>
-                        <option value="카니발 2">카니발 2</option>
-                        <option value="그외">그외</option>
-                    </select>
                 </div>
 
                 <div class="form-group">
@@ -255,25 +243,6 @@ class ScheduleManager {
                 </div>
 
                 <div class="form-group">
-                    <label for="driver-select">운전자</label>
-                    <select id="driver-select">
-                        <option value="">운전자를 선택하세요</option>
-                        ${memberOptions}
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="vehicle-select">차종</label>
-                    <select id="vehicle-select">
-                        <option value="">차종을 선택하세요</option>
-                        <option value="스타렉스" ${schedule.vehicle_type === '스타렉스' ? 'selected' : ''}>스타렉스</option>
-                        <option value="카니발" ${schedule.vehicle_type === '카니발' ? 'selected' : ''}>카니발</option>
-                        <option value="카니발 2" ${schedule.vehicle_type === '카니발 2' ? 'selected' : ''}>카니발 2</option>
-                        <option value="그외" ${schedule.vehicle_type === '그외' ? 'selected' : ''}>그외</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
                     <label>준비 물품</label>
                     <div class="checkbox-group">
                         ${equipmentCheckboxes}
@@ -304,6 +273,7 @@ class ScheduleManager {
             [scheduleId]
         );
 
+        // 해당 공연에 참여 가능한 단원들을 조회
         const eligibleMembers = await window.app.dbAll(`
             SELECT m.*, mp.available_roles 
             FROM members m
@@ -312,16 +282,38 @@ class ScheduleManager {
             ORDER BY m.name
         `, [performance.id]);
 
+        console.log('Eligible members:', eligibleMembers);
+        console.log('Performance roles:', roles);
+
+        // 만약 해당 공연에 참여 가능한 단원이 없다면, 모든 단원을 보여줌
+        let allMembers = eligibleMembers;
+        if (eligibleMembers.length === 0) {
+            allMembers = await window.app.dbAll(`
+                SELECT * FROM members ORDER BY name
+            `);
+        }
+
         const roleSelects = roles.map(role => {
             const currentAssignment = currentAssignments.find(a => a.role === role);
-            const memberOptions = eligibleMembers
-                .filter(member => {
-                    const availableRoles = JSON.parse(member.available_roles || '[]');
-                    return availableRoles.includes(role);
-                })
-                .map(member => 
-                    `<option value="${member.id}" ${member.id == currentAssignment?.member_id ? 'selected' : ''}>${member.name}</option>`
-                ).join('');
+            let memberOptions;
+            
+            if (eligibleMembers.length > 0) {
+                // 공연별 가능한 역할이 설정된 경우
+                memberOptions = eligibleMembers
+                    .filter(member => {
+                        const availableRoles = JSON.parse(member.available_roles || '[]');
+                        return availableRoles.includes(role);
+                    })
+                    .map(member => 
+                        `<option value="${member.id}" ${member.id == currentAssignment?.member_id ? 'selected' : ''}>${member.name}</option>`
+                    ).join('');
+            } else {
+                // 공연별 가능한 역할이 설정되지 않은 경우 모든 단원을 보여줌
+                memberOptions = allMembers
+                    .map(member => 
+                        `<option value="${member.id}" ${member.id == currentAssignment?.member_id ? 'selected' : ''}>${member.name}</option>`
+                    ).join('');
+            }
 
             return `
                 <div class="form-group">
@@ -334,13 +326,30 @@ class ScheduleManager {
             `;
         }).join('');
 
+        // 현재 설정된 차량들 조회
+        const currentVehicles = await window.app.dbAll(
+            'SELECT * FROM schedule_vehicles WHERE schedule_id = ?',
+            [scheduleId]
+        );
+
         const modalContent = `
             <h3>수동 배정 - ${schedule.performance_name}</h3>
             <p><strong>일시:</strong> ${window.app.formatDateTime(schedule.call_time)} (콜) / ${window.app.formatDateTime(schedule.start_time)} (시작)</p>
             <p><strong>장소:</strong> ${schedule.venue}</p>
             
             <form id="manual-assign-form" data-schedule-id="${scheduleId}">
-                ${roleSelects}
+                <div class="assignment-section">
+                    <h4>배우 배정</h4>
+                    ${roleSelects}
+                </div>
+
+                <div class="assignment-section">
+                    <h4>차량 및 운전자 배정</h4>
+                    <div id="vehicle-assignments">
+                        ${this.generateVehicleAssignments(currentVehicles)}
+                    </div>
+                    <button type="button" id="add-vehicle-btn" class="btn btn-secondary btn-sm">차량 추가</button>
+                </div>
 
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="window.app.closeModal()">취소</button>
@@ -350,6 +359,17 @@ class ScheduleManager {
         `;
 
         window.app.showModal(modalContent);
+
+        // 차량 추가 버튼 이벤트
+        document.getElementById('add-vehicle-btn').addEventListener('click', () => {
+            const vehicleContainer = document.getElementById('vehicle-assignments');
+            const vehicleCount = vehicleContainer.children.length;
+            const newVehicleHTML = this.generateVehicleAssignment(null, vehicleCount);
+            vehicleContainer.insertAdjacentHTML('beforeend', newVehicleHTML);
+            this.bindVehicleRemoveEvent();
+        });
+
+        this.bindVehicleRemoveEvent();
 
         document.getElementById('manual-assign-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -365,14 +385,91 @@ class ScheduleManager {
                 }
             });
 
+            // 차량 정보 수집
+            const vehicles = [];
+            const vehicleAssignments = document.querySelectorAll('.vehicle-assignment');
+            vehicleAssignments.forEach((div, index) => {
+                const vehicleType = div.querySelector(`[name="vehicle-type-${index}"]`).value;
+                const driverId = div.querySelector(`[name="driver-${index}"]`).value || null;
+                
+                if (vehicleType) {
+                    vehicles.push({
+                        vehicleType: vehicleType,
+                        driverId: driverId ? parseInt(driverId) : null
+                    });
+                }
+            });
+
             try {
-                await this.saveManualAssignments(scheduleId, assignments);
+                await this.saveManualAssignments(scheduleId, assignments, vehicles);
                 window.app.closeModal();
                 await this.loadSchedules();
             } catch (error) {
                 console.error('수동 배정 저장 실패:', error);
                 window.app.alert('배정 저장 중 오류가 발생했습니다.');
             }
+        });
+    }
+
+    generateVehicleAssignments(currentVehicles) {
+        if (currentVehicles.length === 0) {
+            return this.generateVehicleAssignment(null, 0);
+        }
+        
+        return currentVehicles.map((vehicle, index) => 
+            this.generateVehicleAssignment(vehicle, index)
+        ).join('');
+    }
+
+    generateVehicleAssignment(vehicle, index) {
+        const memberOptions = this.members.map(member => 
+            `<option value="${member.id}" ${vehicle && member.id == vehicle.driver_id ? 'selected' : ''}>${member.name}</option>`
+        ).join('');
+
+        return `
+            <div class="vehicle-assignment" data-index="${index}">
+                <div class="vehicle-row">
+                    <div class="form-group-inline">
+                        <label>차종:</label>
+                        <select name="vehicle-type-${index}" required>
+                            <option value="">차종 선택</option>
+                            <option value="스타렉스" ${vehicle && vehicle.vehicle_type === '스타렉스' ? 'selected' : ''}>스타렉스</option>
+                            <option value="카니발" ${vehicle && vehicle.vehicle_type === '카니발' ? 'selected' : ''}>카니발</option>
+                            <option value="카니발 2" ${vehicle && vehicle.vehicle_type === '카니발 2' ? 'selected' : ''}>카니발 2</option>
+                            <option value="그외" ${vehicle && vehicle.vehicle_type === '그외' ? 'selected' : ''}>그외</option>
+                        </select>
+                    </div>
+                    <div class="form-group-inline">
+                        <label>운전자:</label>
+                        <select name="driver-${index}">
+                            <option value="">운전자 선택</option>
+                            ${memberOptions}
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-danger btn-sm remove-vehicle" data-index="${index}">제거</button>
+                </div>
+            </div>
+        `;
+    }
+
+    bindVehicleRemoveEvent() {
+        document.querySelectorAll('.remove-vehicle').forEach(btn => {
+            btn.removeEventListener('click', this.removeVehicleHandler);
+            btn.addEventListener('click', this.removeVehicleHandler);
+        });
+    }
+
+    removeVehicleHandler = (e) => {
+        const vehicleDiv = e.target.closest('.vehicle-assignment');
+        vehicleDiv.remove();
+        
+        // 인덱스 재정렬
+        const vehicleAssignments = document.querySelectorAll('.vehicle-assignment');
+        vehicleAssignments.forEach((div, newIndex) => {
+            div.dataset.index = newIndex;
+            div.querySelector('[name^="vehicle-type-"]').name = `vehicle-type-${newIndex}`;
+            div.querySelector('[name^="driver-"]').name = `driver-${newIndex}`;
+            div.querySelector('.remove-vehicle').dataset.index = newIndex;
         });
     }
 
@@ -390,8 +487,6 @@ class ScheduleManager {
             // 날짜와 시간을 합쳐서 datetime 생성
             const callTime = `${scheduleDate}T${callTimeStr}`;
             const startTime = `${scheduleDate}T${startTimeStr}`;
-            const driverId = document.getElementById('driver-select').value || null;
-            const vehicleType = document.getElementById('vehicle-select').value || null;
             
             // 체크된 장비들 수집
             const equipmentCheckboxes = document.querySelectorAll('input[name="equipment"]:checked');
@@ -409,10 +504,10 @@ class ScheduleManager {
 
             try {
                 if (form.id === 'add-schedule-form') {
-                    await this.addSchedule(performanceId, callTime, startTime, venue, driverId, vehicleType, equipmentList);
+                    await this.addSchedule(performanceId, callTime, startTime, venue, equipmentList);
                 } else {
                     const id = parseInt(form.dataset.id);
-                    await this.updateSchedule(id, performanceId, callTime, startTime, venue, driverId, vehicleType, equipmentList);
+                    await this.updateSchedule(id, performanceId, callTime, startTime, venue, equipmentList);
                 }
                 window.app.closeModal();
                 await this.loadSchedules();
@@ -423,27 +518,40 @@ class ScheduleManager {
         });
     }
 
-    async saveManualAssignments(scheduleId, assignments) {
+    async saveManualAssignments(scheduleId, assignments, vehicles = []) {
+        // 기존 배정 삭제
         await window.app.dbRun('DELETE FROM assignments WHERE schedule_id = ?', [scheduleId]);
         
+        // 기존 차량 정보 삭제
+        await window.app.dbRun('DELETE FROM schedule_vehicles WHERE schedule_id = ?', [scheduleId]);
+        
+        // 새 배정 저장
         for (const assignment of assignments) {
             await window.app.dbRun(
                 'INSERT INTO assignments (schedule_id, member_id, role, is_manual) VALUES (?, ?, ?, 1)',
                 [scheduleId, assignment.memberId, assignment.role]
             );
         }
+        
+        // 새 차량 정보 저장
+        for (const vehicle of vehicles) {
+            await window.app.dbRun(
+                'INSERT INTO schedule_vehicles (schedule_id, vehicle_type, driver_id) VALUES (?, ?, ?)',
+                [scheduleId, vehicle.vehicleType, vehicle.driverId]
+            );
+        }
     }
 
-    async addSchedule(performanceId, callTime, startTime, venue, driverId, vehicleType, equipmentList) {
-        const sql = 'INSERT INTO schedules (performance_id, call_time, start_time, venue, driver_id, vehicle_type, equipment_list) VALUES (?, ?, ?, ?, ?, ?, ?)';
-        const params = [performanceId, callTime, startTime, venue, driverId, vehicleType, JSON.stringify(equipmentList)];
+    async addSchedule(performanceId, callTime, startTime, venue, equipmentList) {
+        const sql = 'INSERT INTO schedules (performance_id, call_time, start_time, venue, equipment_list) VALUES (?, ?, ?, ?, ?)';
+        const params = [performanceId, callTime, startTime, venue, JSON.stringify(equipmentList)];
         
         return await window.app.dbRun(sql, params);
     }
 
-    async updateSchedule(id, performanceId, callTime, startTime, venue, driverId, vehicleType, equipmentList) {
-        const sql = 'UPDATE schedules SET performance_id = ?, call_time = ?, start_time = ?, venue = ?, driver_id = ?, vehicle_type = ?, equipment_list = ? WHERE id = ?';
-        const params = [performanceId, callTime, startTime, venue, driverId, vehicleType, JSON.stringify(equipmentList), id];
+    async updateSchedule(id, performanceId, callTime, startTime, venue, equipmentList) {
+        const sql = 'UPDATE schedules SET performance_id = ?, call_time = ?, start_time = ?, venue = ?, equipment_list = ? WHERE id = ?';
+        const params = [performanceId, callTime, startTime, venue, JSON.stringify(equipmentList), id];
         
         return await window.app.dbRun(sql, params);
     }
