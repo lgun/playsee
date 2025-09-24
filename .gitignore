@@ -1,0 +1,13 @@
+# Electron build outputs
+/dist/
+/build/
+/out/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.zip
+
+# Node modules
+node_modules/

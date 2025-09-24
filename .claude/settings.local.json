@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(npm run dev:*)"
+    ],
+    "deny": []
+  }
+}
