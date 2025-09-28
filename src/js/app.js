@@ -71,6 +71,11 @@ class App {
                     await window.scheduleManager.loadSchedules();
                 }
                 break;
+            case 'equipment':
+                if (window.equipmentManager) {
+                    await window.equipmentManager.loadEquipment();
+                }
+                break;
             case 'assignment':
                 if (window.assignmentManager) {
                     await window.assignmentManager.initializeMonthOptions();

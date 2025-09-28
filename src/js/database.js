@@ -63,6 +63,7 @@ class Database {
                 driver_id INTEGER,
                 vehicle_type TEXT,
                 equipment_list TEXT,
+                status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'completed', 'cancelled')),
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (performance_id) REFERENCES performances (id) ON DELETE CASCADE,
                 FOREIGN KEY (driver_id) REFERENCES members (id) ON DELETE SET NULL
@@ -95,6 +96,13 @@ class Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (schedule_id) REFERENCES schedules (id) ON DELETE CASCADE,
                 FOREIGN KEY (driver_id) REFERENCES members (id) ON DELETE SET NULL
+            )`,
+            `CREATE TABLE IF NOT EXISTS equipment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`
         ];
 
@@ -136,8 +144,57 @@ class Database {
                 this.db.exec('ALTER TABLE schedules ADD COLUMN equipment_list TEXT');
                 console.log('equipment_list 컬럼 추가됨');
             }
+
+            // members 테이블에 memo 컬럼 추가
+            const memberTableInfo = this.db.pragma('table_info(members)');
+            const memberColumnNames = memberTableInfo.map(col => col.name);
+            
+            if (!memberColumnNames.includes('memo')) {
+                this.db.exec('ALTER TABLE members ADD COLUMN memo TEXT');
+                console.log('members 테이블에 memo 컬럼 추가됨');
+            }
+
+            // schedules 테이블에 status 컬럼 추가
+            const scheduleTableInfo = this.db.pragma('table_info(schedules)');
+            const scheduleColumnNames = scheduleTableInfo.map(col => col.name);
+            
+            if (!scheduleColumnNames.includes('status')) {
+                this.db.exec('ALTER TABLE schedules ADD COLUMN status TEXT DEFAULT "pending" CHECK(status IN ("pending", "completed", "cancelled"))');
+                console.log('schedules 테이블에 status 컬럼 추가됨');
+            }
+
+            // 기본 물품 데이터 삽입
+            this.insertDefaultEquipment();
         } catch (err) {
             console.error('데이터베이스 마이그레이션 실패:', err);
+        }
+    }
+
+    insertDefaultEquipment() {
+        try {
+            const defaultEquipment = [
+                { name: '스피커(대) 2세트', description: '대형 스피커 2개 세트' },
+                { name: '스탠드스피커', description: '스탠드형 스피커' },
+                { name: '스피커(소) 1세트', description: '소형 스피커 1개 세트' },
+                { name: '조명 2세트', description: '무대 조명 2개 세트' },
+                { name: '무빙', description: '무빙 조명' },
+                { name: '레이저', description: '레이저 조명' }
+            ];
+
+            // 기존 데이터가 있는지 확인
+            const existingCount = this.db.prepare('SELECT COUNT(*) as count FROM equipment').get();
+            
+            if (existingCount.count === 0) {
+                const insertStmt = this.db.prepare('INSERT INTO equipment (name, description) VALUES (?, ?)');
+                
+                for (const equipment of defaultEquipment) {
+                    insertStmt.run(equipment.name, equipment.description);
+                }
+                
+                console.log('기본 물품 데이터 삽입 완료');
+            }
+        } catch (err) {
+            console.error('기본 물품 데이터 삽입 실패:', err);
         }
     }
 

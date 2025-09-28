@@ -3,7 +3,8 @@
     "allow": [
       "Bash(sudo apt:*)",
       "Bash(sudo apt install:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(sqlite3:*)"
     ],
     "deny": []
   }

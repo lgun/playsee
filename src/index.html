@@ -31,9 +31,9 @@
                     <span class="icon">🗓️</span>
                     스케줄 관리
                 </button>
-                <button class="nav-btn" data-view="assignment">
-                    <span class="icon">⚡</span>
-                    자동 배정
+                <button class="nav-btn" data-view="equipment">
+                    <span class="icon">📦</span>
+                    물품 관리
                 </button>
             </div>
         </nav>
@@ -82,25 +82,51 @@
             <div id="schedules-view" class="view">
                 <div class="view-header">
                     <h2>스케줄 관리</h2>
-                    <button id="add-schedule" class="btn btn-primary">스케줄 추가</button>
+                    <div class="schedule-controls">
+                        <div class="filter-controls">
+                            <div class="date-range-control">
+                                <label>기간:</label>
+                                <input type="date" id="schedule-start-date" class="form-control">
+                                <span>~</span>
+                                <input type="date" id="schedule-end-date" class="form-control">
+                                <button id="today-range-btn" class="btn btn-secondary btn-sm" title="오늘로 설정 (Ctrl+T)">오늘</button>
+                                <button id="month-range-btn" class="btn btn-secondary btn-sm">이번달</button>
+                            </div>
+                            <div class="status-filter-control">
+                                <label>상태:</label>
+                                <select id="status-filter" class="form-control">
+                                    <option value="all">전체</option>
+                                    <option value="pending">미완료</option>
+                                    <option value="completed">완료</option>
+                                    <option value="cancelled">취소</option>
+                                </select>
+                            </div>
+                            <div class="venue-filter-control">
+                                <label>장소:</label>
+                                <input type="text" id="venue-filter" class="form-control" placeholder="장소명 검색">
+                            </div>
+                            <div class="actor-filter-control">
+                                <label>배우:</label>
+                                <select id="actor-filter" class="form-control">
+                                    <option value="all">전체</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button id="add-schedule" class="btn btn-primary">스케줄 추가</button>
+                    </div>
                 </div>
                 <div class="content-grid">
                     <div id="schedules-list" class="list-container"></div>
                 </div>
             </div>
 
-            <div id="assignment-view" class="view">
+            <div id="equipment-view" class="view">
                 <div class="view-header">
-                    <h2>자동 배정</h2>
-                    <div class="assignment-controls">
-                        <select id="assignment-month">
-                            <option value="">월 선택</option>
-                        </select>
-                        <button id="run-assignment" class="btn btn-primary">자동 배정 실행</button>
-                    </div>
+                    <h2>물품 관리</h2>
+                    <button id="add-equipment" class="btn btn-primary">물품 추가</button>
                 </div>
-                <div class="assignment-content">
-                    <div id="assignment-results" class="results-container"></div>
+                <div class="content-grid">
+                    <div id="equipment-list" class="list-container"></div>
                 </div>
             </div>
         </main>
@@ -117,7 +143,7 @@
     <script src="js/performance.js"></script>
     <script src="js/member.js"></script>
     <script src="js/schedule.js"></script>
+    <script src="js/equipment.js"></script>
     <script src="js/calendar.js"></script>
-    <script src="js/assignment.js"></script>
 </body>
 </html>

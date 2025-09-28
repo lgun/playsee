@@ -3,11 +3,20 @@ class ScheduleManager {
         this.schedules = [];
         this.performances = [];
         this.members = [];
+        this.currentFilters = {
+            startDate: null,
+            endDate: null,
+            status: 'all',
+            venue: '',
+            actor: 'all'
+        };
         this.init();
     }
 
     init() {
         this.bindEvents();
+        this.setupInitialFilters();
+        this.setupKeyboardShortcuts();
         this.loadSchedules();
     }
 
@@ -15,12 +24,123 @@ class ScheduleManager {
         document.getElementById('add-schedule').addEventListener('click', () => {
             this.showAddScheduleModal();
         });
+
+        // 필터 이벤트
+        document.getElementById('schedule-start-date').addEventListener('change', () => {
+            this.applyFilters();
+        });
+
+        document.getElementById('schedule-end-date').addEventListener('change', () => {
+            this.applyFilters();
+        });
+
+        document.getElementById('status-filter').addEventListener('change', () => {
+            this.applyFilters();
+        });
+
+        document.getElementById('venue-filter').addEventListener('input', () => {
+            this.applyFilters();
+        });
+
+        document.getElementById('actor-filter').addEventListener('change', () => {
+            this.applyFilters();
+        });
+
+        // 빠른 필터 버튼
+        document.getElementById('today-range-btn').addEventListener('click', () => {
+            this.setTodayRange();
+        });
+
+        document.getElementById('month-range-btn').addEventListener('click', () => {
+            this.setMonthRange();
+        });
+    }
+
+    setupInitialFilters() {
+        // 기본적으로 이번 달 1일~말일로 설정
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        
+        document.getElementById('schedule-start-date').value = startOfMonth.toISOString().split('T')[0];
+        document.getElementById('schedule-end-date').value = endOfMonth.toISOString().split('T')[0];
+        
+        this.currentFilters.startDate = startOfMonth.toISOString().split('T')[0];
+        this.currentFilters.endDate = endOfMonth.toISOString().split('T')[0];
+        this.currentFilters.venue = '';
+        this.currentFilters.actor = 'all';
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+T: 오늘로 설정
+            if (e.ctrlKey && e.key === 't') {
+                e.preventDefault();
+                this.setTodayRange();
+            }
+        });
+    }
+
+    setTodayRange() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('schedule-start-date').value = today;
+        document.getElementById('schedule-end-date').value = today;
+        this.applyFilters();
+    }
+
+    setMonthRange() {
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        
+        document.getElementById('schedule-start-date').value = startOfMonth.toISOString().split('T')[0];
+        document.getElementById('schedule-end-date').value = endOfMonth.toISOString().split('T')[0];
+        this.applyFilters();
+    }
+
+    applyFilters() {
+        this.currentFilters.startDate = document.getElementById('schedule-start-date').value;
+        this.currentFilters.endDate = document.getElementById('schedule-end-date').value;
+        this.currentFilters.status = document.getElementById('status-filter').value;
+        this.currentFilters.venue = document.getElementById('venue-filter').value.trim();
+        this.currentFilters.actor = document.getElementById('actor-filter').value;
+        
+        this.loadSchedules();
     }
 
     async loadSchedules() {
         try {
             const container = document.getElementById('schedules-list');
             window.app.showLoading(container);
+
+            // 필터 조건 생성
+            let whereClause = 'WHERE 1=1';
+            let params = [];
+
+            if (this.currentFilters.startDate) {
+                whereClause += ' AND date(s.call_time) >= ?';
+                params.push(this.currentFilters.startDate);
+            }
+
+            if (this.currentFilters.endDate) {
+                whereClause += ' AND date(s.call_time) <= ?';
+                params.push(this.currentFilters.endDate);
+            }
+
+            if (this.currentFilters.status !== 'all') {
+                whereClause += ' AND s.status = ?';
+                params.push(this.currentFilters.status);
+            }
+
+            if (this.currentFilters.venue) {
+                whereClause += ' AND s.venue LIKE ?';
+                params.push(`%${this.currentFilters.venue}%`);
+            }
+
+            if (this.currentFilters.actor !== 'all') {
+                whereClause += ' AND EXISTS (SELECT 1 FROM assignments a2 WHERE a2.schedule_id = s.id AND a2.member_id = ?)';
+                params.push(this.currentFilters.actor);
+            }
 
             this.schedules = await window.app.dbAll(`
                 SELECT s.*, p.name as performance_name, p.roles as performance_roles,
@@ -32,12 +152,16 @@ class ScheduleManager {
                 LEFT JOIN members m ON a.member_id = m.id
                 LEFT JOIN schedule_vehicles sv ON s.id = sv.schedule_id
                 LEFT JOIN members driver ON sv.driver_id = driver.id
+                ${whereClause}
                 GROUP BY s.id
-                ORDER BY s.call_time DESC
-            `);
+                ORDER BY s.call_time ASC
+            `, params);
 
             this.performances = await window.app.dbAll('SELECT * FROM performances ORDER BY name');
             this.members = await window.app.dbAll('SELECT * FROM members ORDER BY name');
+            
+            // 배우 필터 옵션 업데이트
+            this.updateActorFilterOptions();
             
             this.renderSchedules();
         } catch (error) {
@@ -47,20 +171,48 @@ class ScheduleManager {
         }
     }
 
+    updateActorFilterOptions() {
+        const actorFilter = document.getElementById('actor-filter');
+        const currentValue = actorFilter.value;
+        
+        // 기존 옵션 제거 (전체 옵션 제외)
+        actorFilter.innerHTML = '<option value="all">전체</option>';
+        
+        // 배우 옵션 추가
+        this.members.forEach(member => {
+            const option = document.createElement('option');
+            option.value = member.id;
+            option.textContent = member.name;
+            actorFilter.appendChild(option);
+        });
+        
+        // 이전 선택값 복원
+        if (currentValue && actorFilter.querySelector(`option[value="${currentValue}"]`)) {
+            actorFilter.value = currentValue;
+        }
+    }
+
     renderSchedules() {
         const container = document.getElementById('schedules-list');
-        
+
         if (this.schedules.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <h3>등록된 스케줄이 없습니다</h3>
-                    <p>새 스케줄을 추가해주세요.</p>
+                    <h3>스케줄이 없습니다</h3>
+                    <p>선택한 기간과 조건에 해당하는 스케줄이 없습니다.</p>
                 </div>
             `;
             return;
         }
 
-        container.innerHTML = this.schedules.map(schedule => {
+        const scheduleHTML = this.schedules.map(schedule => {
+            const status = schedule.status || 'pending';
+            const statusText = {
+                'pending': '미완료',
+                'completed': '완료',
+                'cancelled': '취소'
+            }[status];
+
             const assignments = schedule.assignments ? 
                 schedule.assignments.split(',').map(a => {
                     const [name, role] = a.split(':');
@@ -70,59 +222,188 @@ class ScheduleManager {
             const equipmentList = schedule.equipment_list ? JSON.parse(schedule.equipment_list) : [];
             const equipmentStr = equipmentList.length > 0 ? equipmentList.join(', ') : '없음';
 
-            // 차량 정보 파싱
-            const vehicleInfo = schedule.vehicle_info ? 
-                schedule.vehicle_info.split(',').map(info => {
-                    const [vehicleType, driverName] = info.split(':');
-                    return driverName ? `${vehicleType}(${driverName})` : vehicleType;
-                }).join(', ') : '미정';
-
             return `
-                <div class="list-item" data-id="${schedule.id}">
-                    <h3>${schedule.performance_name}</h3>
-                    <p><strong>콜타임:</strong> ${window.app.formatDateTime(schedule.call_time)}</p>
-                    <p><strong>스타트타임:</strong> ${window.app.formatDateTime(schedule.start_time)}</p>
-                    <p><strong>장소:</strong> ${schedule.venue}</p>
-                    <p><strong>배정된 배우:</strong> ${assignments}</p>
-                    <p><strong>차량 및 운전자:</strong> ${vehicleInfo}</p>
-                    <p><strong>준비물품:</strong> ${equipmentStr}</p>
-                    <p><strong>등록일:</strong> ${window.app.formatDateTime(schedule.created_at)}</p>
-                    <div class="actions">
-                        <button class="btn btn-success assign-manual" data-id="${schedule.id}">수동 배정</button>
-                        <button class="btn btn-secondary edit-schedule" data-id="${schedule.id}">수정</button>
-                        <button class="btn btn-danger delete-schedule" data-id="${schedule.id}">삭제</button>
+                <div class="schedule-item status-${status}">
+                    <div class="schedule-header">
+                        <h3 class="schedule-title">${schedule.performance_name}</h3>
+                        <span class="schedule-status ${status}">${statusText}</span>
+                    </div>
+                    
+                    <div class="schedule-info">
+                        <div class="info-row">
+                            <div class="info-group">
+                                <div class="info-item">
+                                    <strong>날짜:</strong> ${window.app.formatDate(schedule.call_time)}
+                                </div>
+                                <div class="info-item">
+                                    <strong>콜타임:</strong> ${window.app.formatTime(schedule.call_time)}
+                                </div>
+                                <div class="info-item">
+                                    <strong>스타트타임:</strong> ${window.app.formatTime(schedule.start_time)}
+                                </div>
+                            </div>
+                            
+                            <div class="info-group">
+                                <div class="info-item">
+                                    <strong>장소:</strong> ${schedule.venue}
+                                </div>
+                                <div class="info-item">
+                                    <strong>차량:</strong> ${schedule.vehicle_type || '미정'}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="info-row">
+                            <div class="info-group">
+                                <div class="info-item">
+                                    <strong>준비물품:</strong> ${equipmentStr}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="info-row">
+                            <div class="info-group">
+                                <div class="info-item">
+                                    <strong>배정된 배우:</strong> ${assignments}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="schedule-actions">
+                        <div class="status-buttons">
+                            <button class="status-btn pending ${status === 'pending' ? 'active' : ''}" 
+                                    data-schedule-id="${schedule.id}" data-status="pending">
+                                미완료
+                            </button>
+                            <button class="status-btn completed ${status === 'completed' ? 'active' : ''}" 
+                                    data-schedule-id="${schedule.id}" data-status="completed">
+                                완료
+                            </button>
+                            <button class="status-btn cancelled ${status === 'cancelled' ? 'active' : ''}" 
+                                    data-schedule-id="${schedule.id}" data-status="cancelled">
+                                취소
+                            </button>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button class="btn btn-success btn-sm" onclick="window.scheduleManager.showManualAssignModal(${schedule.id})">
+                                배정
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="window.scheduleManager.showEditScheduleModal(${schedule.id})">
+                                수정
+                            </button>
+                            <button class="btn btn-danger btn-sm" onclick="window.scheduleManager.deleteSchedule(${schedule.id})">
+                                삭제
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
         }).join('');
 
-        container.querySelectorAll('.assign-manual').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = e.target.dataset.id;
-                this.showManualAssignModal(parseInt(id));
-            });
-        });
+        container.innerHTML = scheduleHTML;
 
-        container.querySelectorAll('.edit-schedule').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = e.target.dataset.id;
-                this.showEditScheduleModal(parseInt(id));
-            });
-        });
-
-        container.querySelectorAll('.delete-schedule').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const id = e.target.dataset.id;
-                const schedule = this.schedules.find(s => s.id == id);
-                const confirmed = await window.app.confirm(`${schedule.performance_name} 스케줄을 삭제하시겠습니까?`);
-                if (confirmed) {
-                    await this.deleteSchedule(parseInt(id));
-                }
+        // 상태 버튼 이벤트 바인딩
+        container.querySelectorAll('.status-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const scheduleId = parseInt(e.target.dataset.scheduleId);
+                const newStatus = e.target.dataset.status;
+                const currentStatus = e.target.classList.contains('active');
+                
+                // 이미 활성화된 상태를 다시 누르면 무시
+                if (currentStatus) return;
+                
+                await this.updateScheduleStatus(scheduleId, newStatus);
             });
         });
     }
 
-    showAddScheduleModal() {
+    async updateScheduleStatus(scheduleId, status) {
+        try {
+            // 버튼 상태를 먼저 즉시 업데이트 (UI 반응성)
+            this.updateStatusButtonsUI(scheduleId, status);
+            
+            // 데이터베이스 업데이트
+            await window.app.dbRun(
+                'UPDATE schedules SET status = ? WHERE id = ?',
+                [status, scheduleId]
+            );
+            
+            // 메모리의 스케줄 데이터도 즉시 업데이트
+            const schedule = this.schedules.find(s => s.id === scheduleId);
+            if (schedule) {
+                schedule.status = status;
+                // 스케줄 아이템의 상태 클래스도 업데이트
+                this.updateScheduleItemClass(scheduleId, status);
+            }
+            
+            // 캘린더도 새로고침
+            if (window.calendar) {
+                await window.calendar.refresh();
+            }
+            
+            console.log(`스케줄 ${scheduleId} 상태를 ${status}로 변경했습니다.`);
+        } catch (error) {
+            console.error('스케줄 상태 업데이트 실패:', error);
+            await window.app.alert('상태 업데이트에 실패했습니다.');
+            // 원래 상태로 되돌리기
+            this.loadSchedules();
+        }
+    }
+
+    updateStatusButtonsUI(scheduleId, newStatus) {
+        // 해당 스케줄의 모든 상태 버튼 찾기
+        const statusButtons = document.querySelectorAll(`[data-schedule-id="${scheduleId}"].status-btn`);
+        
+        statusButtons.forEach(btn => {
+            if (btn.dataset.status === newStatus) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    updateScheduleItemClass(scheduleId, newStatus) {
+        // 스케줄 아이템 찾기
+        const scheduleItem = document.querySelector(`[data-schedule-id="${scheduleId}"]`).closest('.schedule-item');
+        if (scheduleItem) {
+            // 기존 상태 클래스 제거
+            scheduleItem.classList.remove('status-pending', 'status-completed', 'status-cancelled');
+            // 새 상태 클래스 추가
+            scheduleItem.classList.add(`status-${newStatus}`);
+            
+            // 상태 표시 텍스트도 업데이트
+            const statusSpan = scheduleItem.querySelector('.schedule-status');
+            if (statusSpan) {
+                const statusText = {
+                    'pending': '미완료',
+                    'completed': '완료',
+                    'cancelled': '취소'
+                }[newStatus];
+                
+                statusSpan.textContent = statusText;
+                statusSpan.className = `schedule-status ${newStatus}`;
+            }
+        }
+    }
+
+    async getActiveEquipment() {
+        try {
+            return await window.app.dbAll(`
+                SELECT * FROM equipment 
+                WHERE is_active = 1 
+                ORDER BY name
+            `);
+        } catch (error) {
+            console.error('활성 물품 목록 조회 실패:', error);
+            return [];
+        }
+    }
+
+    async showAddScheduleModal() {
         const performanceOptions = this.performances.map(perf => 
             `<option value="${perf.id}">${perf.name}</option>`
         ).join('');
@@ -130,6 +411,12 @@ class ScheduleManager {
         const memberOptions = this.members.map(member => 
             `<option value="${member.id}">${member.name}</option>`
         ).join('');
+
+        // 동적으로 물품 목록 가져오기
+        const equipmentList = await this.getActiveEquipment();
+        const equipmentCheckboxes = equipmentList.map(item => `
+            <label><input type="checkbox" name="equipment" value="${item.name}"> ${item.name}</label>
+        `).join('');
 
         const modalContent = `
             <h3>스케줄 추가</h3>
@@ -165,13 +452,9 @@ class ScheduleManager {
                 <div class="form-group">
                     <label>준비 물품</label>
                     <div class="checkbox-group">
-                        <label><input type="checkbox" name="equipment" value="스피커(대) 2세트"> 스피커(대) 2세트</label>
-                        <label><input type="checkbox" name="equipment" value="스탠드스피커"> 스탠드스피커</label>
-                        <label><input type="checkbox" name="equipment" value="스피커(소) 1세트"> 스피커(소) 1세트</label>
-                        <label><input type="checkbox" name="equipment" value="조명 2세트"> 조명 2세트</label>
-                        <label><input type="checkbox" name="equipment" value="무빙"> 무빙</label>
-                        <label><input type="checkbox" name="equipment" value="레이저"> 레이저</label>
+                        ${equipmentCheckboxes}
                     </div>
+                    ${equipmentList.length === 0 ? '<p class="text-muted">등록된 물품이 없습니다. <a href="#" onclick="window.app.showView(\'equipment\'); window.app.closeModal();">물품 관리</a>에서 물품을 추가해주세요.</p>' : ''}
                 </div>
 
                 <div class="form-actions">
@@ -185,7 +468,7 @@ class ScheduleManager {
         this.bindScheduleFormEvents();
     }
 
-    showEditScheduleModal(id) {
+    async showEditScheduleModal(id) {
         const schedule = this.schedules.find(s => s.id === id);
         if (!schedule) return;
 
@@ -204,11 +487,11 @@ class ScheduleManager {
         const startTimeStr = startTimeDate.toTimeString().slice(0, 5);
 
         const equipmentList = schedule.equipment_list ? JSON.parse(schedule.equipment_list) : [];
-        const equipmentCheckboxes = [
-            '스피커(대) 2세트', '스탠드스피커', '스피커(소) 1세트', 
-            '조명 2세트', '무빙', '레이저'
-        ].map(item => `
-            <label><input type="checkbox" name="equipment" value="${item}" ${equipmentList.includes(item) ? 'checked' : ''}> ${item}</label>
+        
+        // 동적으로 물품 목록 가져오기
+        const activeEquipment = await this.getActiveEquipment();
+        const equipmentCheckboxes = activeEquipment.map(item => `
+            <label><input type="checkbox" name="equipment" value="${item.name}" ${equipmentList.includes(item.name) ? 'checked' : ''}> ${item.name}</label>
         `).join('');
 
         const modalContent = `
@@ -404,6 +687,11 @@ class ScheduleManager {
                 await this.saveManualAssignments(scheduleId, assignments, vehicles);
                 window.app.closeModal();
                 await this.loadSchedules();
+                
+                // 단원 목록 갱신 (공연 횟수 업데이트)
+                if (window.memberManager) {
+                    await window.memberManager.loadMembers();
+                }
             } catch (error) {
                 console.error('수동 배정 저장 실패:', error);
                 window.app.alert('배정 저장 중 오류가 발생했습니다.');
@@ -511,6 +799,11 @@ class ScheduleManager {
                 }
                 window.app.closeModal();
                 await this.loadSchedules();
+                
+                // 단원 목록 갱신 (공연 횟수 업데이트)
+                if (window.memberManager) {
+                    await window.memberManager.loadMembers();
+                }
             } catch (error) {
                 console.error('스케줄 저장 실패:', error);
                 window.app.alert('저장 중 오류가 발생했습니다.');
@@ -560,6 +853,11 @@ class ScheduleManager {
         try {
             await window.app.dbRun('DELETE FROM schedules WHERE id = ?', [id]);
             await this.loadSchedules();
+            
+            // 단원 목록 갱신 (공연 횟수 업데이트)
+            if (window.memberManager) {
+                await window.memberManager.loadMembers();
+            }
         } catch (error) {
             console.error('스케줄 삭제 실패:', error);
             window.app.alert('삭제 중 오류가 발생했습니다.');

@@ -32,11 +32,50 @@ class MemberManager {
             `);
 
             this.performances = await window.app.dbAll('SELECT * FROM performances ORDER BY name');
+            
+            // 각 단원의 최근 3개월 공연 횟수 계산
+            await this.calculateRecentPerformanceCounts();
+            
             this.renderMembers();
         } catch (error) {
             console.error('단원 목록 로딩 실패:', error);
             const container = document.getElementById('members-list');
             window.app.showError(container, '단원 목록을 불러오는데 실패했습니다.');
+        }
+    }
+
+    async calculateRecentPerformanceCounts() {
+        const now = new Date();
+        const months = [];
+        
+        // 최근 3개월 계산 (현재 월 포함)
+        for (let i = 2; i >= 0; i--) {
+            const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.push({
+                year: month.getFullYear(),
+                month: month.getMonth() + 1,
+                label: month.toLocaleDateString('ko-KR', { month: 'long' })
+            });
+        }
+
+        for (let member of this.members) {
+            member.recentCounts = [];
+            
+            for (let monthInfo of months) {
+                const count = await window.app.dbGet(`
+                    SELECT COUNT(*) as count
+                    FROM assignments a
+                    JOIN schedules s ON a.schedule_id = s.id
+                    WHERE a.member_id = ?
+                    AND strftime('%Y', s.call_time) = ?
+                    AND strftime('%m', s.call_time) = ?
+                `, [member.id, monthInfo.year.toString(), monthInfo.month.toString().padStart(2, '0')]);
+                
+                member.recentCounts.push({
+                    month: monthInfo.label,
+                    count: count ? count.count : 0
+                });
+            }
         }
     }
 
@@ -56,21 +95,31 @@ class MemberManager {
         container.innerHTML = this.members.map(member => {
             const performanceNames = member.performance_names ? 
                 member.performance_names.split(',').join(', ') : '없음';
-            const avoidTimes = member.avoid_times ? JSON.parse(member.avoid_times) : [];
-            const avoidDays = member.avoid_days ? JSON.parse(member.avoid_days) : [];
+            
+            // 최근 3개월 공연 횟수 표시
+            const recentCountsText = member.recentCounts ? 
+                member.recentCounts.map(rc => `${rc.month}: ${rc.count}번`).join(', ') : '';
             
             return `
-                <div class="list-item" data-id="${member.id}">
-                    <h3>${member.name}</h3>
-                    <p><strong>자동 배정:</strong> ${member.auto_assign ? '포함' : '제외'}</p>
-                    <p><strong>월 최대 공연횟수:</strong> ${member.max_monthly}회</p>
-                    <p><strong>참여 가능한 공연:</strong> ${performanceNames}</p>
-                    ${avoidTimes.length > 0 ? `<p><strong>비선호 시간대:</strong> ${avoidTimes.join(', ')}</p>` : ''}
-                    ${avoidDays.length > 0 ? `<p><strong>비선호 요일:</strong> ${avoidDays.join(', ')}</p>` : ''}
-                    <p><strong>등록일:</strong> ${window.app.formatDateTime(member.created_at)}</p>
-                    <div class="actions">
-                        <button class="btn btn-secondary edit-member" data-id="${member.id}">상세 설정</button>
-                        <button class="btn btn-danger delete-member" data-id="${member.id}">삭제</button>
+                <div class="member-item" data-id="${member.id}">
+                    <div class="member-header">
+                        <h3 class="member-name">
+                            ${member.name}
+                            ${member.memo ? '<span class="memo-indicator" title="메모 있음">📝</span>' : ''}
+                        </h3>
+                        <div class="member-actions">
+                            <button class="btn btn-secondary btn-sm edit-member" data-id="${member.id}">상세 설정</button>
+                            <button class="btn btn-danger btn-sm delete-member" data-id="${member.id}">삭제</button>
+                        </div>
+                    </div>
+                    <div class="member-info">
+                        <div class="member-details">
+                            <span class="info-item"><strong>참여 가능:</strong> ${performanceNames}</span>
+                        </div>
+                        <div class="member-stats">
+                            <span class="stats-label">최근 3개월:</span>
+                            <span class="stats-counts">${recentCountsText}</span>
+                        </div>
                     </div>
                 </div>
             `;
@@ -178,7 +227,7 @@ class MemberManager {
         const dayOptions = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
 
         const personalSchedulesList = personalSchedules.map(schedule => `
-            <div class="schedule-item">
+            <div class="personal-schedule-item">
                 <span>${window.app.formatDate(schedule.date)}</span>
                 <span>${schedule.reason || ''}</span>
                 <button type="button" class="btn btn-danger btn-sm delete-schedule" data-id="${schedule.id}">삭제</button>
@@ -194,15 +243,8 @@ class MemberManager {
                 </div>
 
                 <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="auto-assign" ${member.auto_assign ? 'checked' : ''}>
-                        자동 배정에 포함
-                    </label>
-                </div>
-
-                <div class="form-group">
-                    <label for="max-monthly">월 최대 공연횟수</label>
-                    <input type="number" id="max-monthly" value="${member.max_monthly}" min="1" max="31">
+                    <label for="member-memo">메모</label>
+                    <textarea id="member-memo" rows="3" placeholder="단원에 대한 메모를 입력하세요...">${member.memo || ''}</textarea>
                 </div>
 
                 <div class="form-group">
@@ -304,8 +346,7 @@ class MemberManager {
             e.preventDefault();
             
             const name = document.getElementById('member-name').value.trim();
-            const autoAssign = document.getElementById('auto-assign').checked;
-            const maxMonthly = parseInt(document.getElementById('max-monthly').value) || 10;
+            const memo = document.getElementById('member-memo').value.trim();
             
             const avoidTimes = Array.from(document.querySelectorAll('input[name="avoid-time"]:checked'))
                 .map(cb => cb.value);
@@ -318,7 +359,7 @@ class MemberManager {
             }
 
             try {
-                await this.updateMember(memberId, name, autoAssign, maxMonthly, avoidTimes, avoidDays);
+                await this.updateMember(memberId, name, memo, avoidTimes, avoidDays);
                 await this.updateMemberPerformances(memberId);
                 window.app.closeModal();
                 await this.loadMembers();
@@ -350,15 +391,13 @@ class MemberManager {
         return await window.app.dbRun(sql, [name]);
     }
 
-    async updateMember(id, name, autoAssign, maxMonthly, avoidTimes, avoidDays) {
+    async updateMember(id, name, memo, avoidTimes, avoidDays) {
         const sql = `UPDATE members SET 
-                     name = ?, auto_assign = ?, max_monthly = ?, 
-                     avoid_times = ?, avoid_days = ? 
+                     name = ?, memo = ?, avoid_times = ?, avoid_days = ? 
                      WHERE id = ?`;
         const params = [
             name, 
-            autoAssign, 
-            maxMonthly, 
+            memo,
             JSON.stringify(avoidTimes),
             JSON.stringify(avoidDays),
             id
