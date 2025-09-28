@@ -106,9 +106,11 @@ body {
 }
 
 .view-header h2 {
-    font-size: 24px;
+    font-size: 20px;
     color: #2c3e50;
     font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .btn {
@@ -364,11 +366,13 @@ body {
 
 .modal-content {
     background-color: white;
-    margin: 5% auto;
+    margin: 3% auto;
     padding: 0;
     border-radius: 10px;
-    width: 90%;
-    max-width: 600px;
+    width: 95%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     animation: slideIn 0.3s ease;
 }
@@ -705,8 +709,24 @@ body {
     }
     
     .modal-content {
-        width: 95%;
-        margin: 10% auto;
+        width: 98%;
+        margin: 5% auto;
+        max-height: 95vh;
+    }
+    
+    .checkbox-group {
+        max-height: 120px;
+    }
+    
+    .view-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    .view-header h2 {
+        font-size: 18px;
+        text-align: center;
     }
 }
 
@@ -860,29 +880,51 @@ body {
 
 /* 체크박스 그룹 스타일 */
 .checkbox-group {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     margin-top: 8px;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 10px;
+    background-color: #f8f9fa;
 }
 
 .checkbox-group label {
     display: flex;
     align-items: center;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
-    padding: 5px;
+    padding: 8px 10px;
     border-radius: 4px;
     transition: background-color 0.2s;
+    background-color: white;
+    border: 1px solid #ddd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .checkbox-group label:hover {
-    background-color: #f8f9fa;
+    background-color: #e9ecef;
+}
+
+.checkbox-group label:has(input:checked) {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
 }
 
 .checkbox-group input[type="checkbox"] {
-    margin-right: 8px;
-    transform: scale(1.1);
+    margin-right: 10px;
+    transform: scale(1.2);
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
 }
 
 /* 버튼 토글 상태 개선 */
@@ -1114,9 +1156,9 @@ body {
 }
 
 .info-item {
-    font-size: 14px;
+    font-size: 13px;
     color: #555;
-    line-height: 1.4;
+    line-height: 1.3;
 }
 
 .info-item strong {
@@ -1286,22 +1328,24 @@ textarea#member-memo:focus {
 .schedule-controls {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 20px;
     flex-wrap: wrap;
 }
 
 .filter-controls {
     display: flex;
-    gap: 15px;
-    align-items: center;
+    gap: 12px;
+    align-items: flex-end;
     flex-wrap: wrap;
+    flex: 1;
 }
 
 .date-range-control {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
 .date-range-control label,
@@ -1309,14 +1353,15 @@ textarea#member-memo:focus {
     font-weight: 600;
     color: #2c3e50;
     white-space: nowrap;
+    font-size: 13px;
 }
 
 .date-range-control input,
 .status-filter-control select {
-    padding: 6px 10px;
+    padding: 5px 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .date-range-control span {
@@ -1334,11 +1379,11 @@ textarea#member-memo:focus {
 
 .venue-filter-control input,
 .actor-filter-control select {
-    padding: 6px 10px;
+    padding: 5px 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    font-size: 14px;
-    min-width: 120px;
+    font-size: 13px;
+    min-width: 100px;
 }
 
 .venue-filter-control label,
@@ -1346,6 +1391,7 @@ textarea#member-memo:focus {
     font-weight: 600;
     color: #2c3e50;
     white-space: nowrap;
+    font-size: 13px;
 }
 
 .btn-sm {
@@ -1357,9 +1403,9 @@ textarea#member-memo:focus {
 .schedule-item {
     background: white;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    margin-bottom: 12px;
-    padding: 16px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    padding: 12px;
     transition: box-shadow 0.2s, transform 0.1s;
     position: relative;
 }
@@ -1389,20 +1435,20 @@ textarea#member-memo:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 
 .schedule-title {
     margin: 0;
     color: #2c3e50;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
 }
 
 .schedule-status {
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
 }
@@ -1425,27 +1471,27 @@ textarea#member-memo:focus {
 .schedule-info {
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    margin-bottom: 15px;
+    gap: 8px;
+    margin-bottom: 10px;
 }
 
 .info-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
 }
 
 .info-group {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 3px;
     min-width: 0; /* flex item이 축소될 수 있도록 */
 }
 
 .info-item {
-    font-size: 14px;
+    font-size: 13px;
     color: #555;
-    line-height: 1.4;
+    line-height: 1.3;
 }
 
 .info-item strong {
@@ -1455,25 +1501,25 @@ textarea#member-memo:focus {
 
 .schedule-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     justify-content: space-between;
     align-items: center;
     border-top: 1px solid #eee;
-    padding-top: 10px;
+    padding-top: 8px;
     flex-wrap: wrap;
 }
 
 .status-buttons {
     display: flex;
-    gap: 5px;
+    gap: 4px;
     align-items: center;
 }
 
 .status-btn {
-    padding: 4px 12px;
+    padding: 3px 8px;
     border: 1px solid;
-    border-radius: 12px;
-    font-size: 11px;
+    border-radius: 10px;
+    font-size: 10px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -1523,12 +1569,40 @@ textarea#member-memo:focus {
 
 .action-buttons {
     display: flex;
-    gap: 8px;
+    gap: 4px;
     align-items: center;
     flex-wrap: wrap;
 }
 
 /* 반응형 디자인 */
+@media (max-width: 1200px) {
+    .filter-controls {
+        gap: 8px;
+    }
+    
+    .venue-filter-control input,
+    .actor-filter-control select {
+        min-width: 80px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .schedule-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+    
+    .filter-controls {
+        justify-content: flex-start;
+        gap: 10px;
+    }
+    
+    .date-range-control {
+        flex-wrap: wrap;
+    }
+}
+
 @media (max-width: 768px) {
     .schedule-controls {
         flex-direction: column;
@@ -1538,11 +1612,31 @@ textarea#member-memo:focus {
     .filter-controls {
         flex-direction: column;
         gap: 15px;
+        align-items: stretch;
+    }
+    
+    .date-range-control,
+    .status-filter-control,
+    .venue-filter-control,
+    .actor-filter-control {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
     }
     
     .date-range-control {
+        flex-direction: row;
         flex-wrap: wrap;
         justify-content: center;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .venue-filter-control input,
+    .actor-filter-control select,
+    .status-filter-control select {
+        width: 100%;
+        min-width: auto;
     }
     
     .schedule-info {

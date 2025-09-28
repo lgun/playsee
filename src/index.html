@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Playsee - 극단 공연 스케줄 관리</title>
+    <title>Playsee</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -11,7 +11,6 @@
         <nav class="sidebar">
             <div class="logo">
                 <h1>Playsee</h1>
-                <p>극단 관리 시스템</p>
             </div>
             
             <div class="nav-menu">
@@ -81,20 +80,20 @@
 
             <div id="schedules-view" class="view">
                 <div class="view-header">
-                    <h2>스케줄 관리</h2>
+                    <h2 style="margin-right:50px;">스케줄 관리</h2>
                     <div class="schedule-controls">
                         <div class="filter-controls">
                             <div class="date-range-control">
                                 <label>기간:</label>
-                                <input type="date" id="schedule-start-date" class="form-control">
+                                <input type="date" id="schedule-start-date">
                                 <span>~</span>
-                                <input type="date" id="schedule-end-date" class="form-control">
+                                <input type="date" id="schedule-end-date">
                                 <button id="today-range-btn" class="btn btn-secondary btn-sm" title="오늘로 설정 (Ctrl+T)">오늘</button>
                                 <button id="month-range-btn" class="btn btn-secondary btn-sm">이번달</button>
                             </div>
                             <div class="status-filter-control">
                                 <label>상태:</label>
-                                <select id="status-filter" class="form-control">
+                                <select id="status-filter">
                                     <option value="all">전체</option>
                                     <option value="pending">미완료</option>
                                     <option value="completed">완료</option>
@@ -103,11 +102,11 @@
                             </div>
                             <div class="venue-filter-control">
                                 <label>장소:</label>
-                                <input type="text" id="venue-filter" class="form-control" placeholder="장소명 검색">
+                                <input type="text" id="venue-filter" placeholder="장소명 검색">
                             </div>
                             <div class="actor-filter-control">
                                 <label>배우:</label>
-                                <select id="actor-filter" class="form-control">
+                                <select id="actor-filter">
                                     <option value="all">전체</option>
                                 </select>
                             </div>

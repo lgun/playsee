@@ -161,7 +161,7 @@ class ScheduleManager {
             this.members = await window.app.dbAll('SELECT * FROM members ORDER BY name');
             
             // 배우 필터 옵션 업데이트
-            this.updateActorFilterOptions();
+            await this.updateActorFilterOptions();
             
             this.renderSchedules();
         } catch (error) {
@@ -171,20 +171,38 @@ class ScheduleManager {
         }
     }
 
-    updateActorFilterOptions() {
+    async updateActorFilterOptions() {
         const actorFilter = document.getElementById('actor-filter');
         const currentValue = actorFilter.value;
         
         // 기존 옵션 제거 (전체 옵션 제외)
         actorFilter.innerHTML = '<option value="all">전체</option>';
         
-        // 배우 옵션 추가
-        this.members.forEach(member => {
+        // 현재 필터 날짜 범위 가져오기
+        const startDate = this.currentFilters.startDate;
+        const endDate = this.currentFilters.endDate;
+        
+        // 배우 옵션 추가 (개인 스케줄 정보와 함께)
+        for (const member of this.members) {
             const option = document.createElement('option');
             option.value = member.id;
-            option.textContent = member.name;
+            
+            // 해당 날짜 범위에 개인 스케줄이 있는지 확인
+            if (startDate && endDate) {
+                const personalSchedules = await window.app.dbAll(`
+                    SELECT COUNT(*) as count 
+                    FROM personal_schedules 
+                    WHERE member_id = ? AND date BETWEEN ? AND ?
+                `, [member.id, startDate, endDate]);
+                
+                const hasPersonalSchedule = personalSchedules[0].count > 0;
+                option.textContent = hasPersonalSchedule ? `${member.name} (개인일정 있음)` : member.name;
+            } else {
+                option.textContent = member.name;
+            }
+            
             actorFilter.appendChild(option);
-        });
+        }
         
         // 이전 선택값 복원
         if (currentValue && actorFilter.querySelector(`option[value="${currentValue}"]`)) {
@@ -230,44 +248,16 @@ class ScheduleManager {
                     </div>
                     
                     <div class="schedule-info">
-                        <div class="info-row">
-                            <div class="info-group">
-                                <div class="info-item">
-                                    <strong>날짜:</strong> ${window.app.formatDate(schedule.call_time)}
-                                </div>
-                                <div class="info-item">
-                                    <strong>콜타임:</strong> ${window.app.formatTime(schedule.call_time)}
-                                </div>
-                                <div class="info-item">
-                                    <strong>스타트타임:</strong> ${window.app.formatTime(schedule.start_time)}
-                                </div>
-                            </div>
-                            
-                            <div class="info-group">
-                                <div class="info-item">
-                                    <strong>장소:</strong> ${schedule.venue}
-                                </div>
-                                <div class="info-item">
-                                    <strong>차량:</strong> ${schedule.vehicle_type || '미정'}
-                                </div>
-                            </div>
+                        <div class="info-item">
+                            <strong>날짜:</strong> ${window.app.formatDate(schedule.call_time)} | <strong>콜:</strong> ${window.app.formatTime(schedule.call_time)} | <strong>시작:</strong> ${window.app.formatTime(schedule.start_time)}
                         </div>
-                        
-                        <div class="info-row">
-                            <div class="info-group">
-                                <div class="info-item">
-                                    <strong>준비물품:</strong> ${equipmentStr}
-                                </div>
-                            </div>
+                        <div class="info-item">
+                            <strong>장소:</strong> ${schedule.venue}${schedule.vehicle_type ? ` | <strong>차량:</strong> ${schedule.vehicle_type}` : ''}
                         </div>
-                        
-                        <div class="info-row">
-                            <div class="info-group">
-                                <div class="info-item">
-                                    <strong>배정된 배우:</strong> ${assignments}
-                                </div>
-                            </div>
+                        <div class="info-item">
+                            <strong>배우:</strong> ${assignments}
                         </div>
+                        ${equipmentList.length > 0 ? `<div class="info-item"><strong>물품:</strong> ${equipmentStr}</div>` : ''}
                     </div>
                     
                     <div class="schedule-actions">
@@ -455,6 +445,7 @@ class ScheduleManager {
                         ${equipmentCheckboxes}
                     </div>
                     ${equipmentList.length === 0 ? '<p class="text-muted">등록된 물품이 없습니다. <a href="#" onclick="window.app.showView(\'equipment\'); window.app.closeModal();">물품 관리</a>에서 물품을 추가해주세요.</p>' : ''}
+                    ${equipmentList.length > 6 ? '<p class="text-muted" style="font-size: 12px; margin-top: 8px; color: #6c757d;">스크롤하여 더 많은 물품을 확인하세요.</p>' : ''}
                 </div>
 
                 <div class="form-actions">
@@ -530,6 +521,7 @@ class ScheduleManager {
                     <div class="checkbox-group">
                         ${equipmentCheckboxes}
                     </div>
+                    ${activeEquipment.length > 6 ? '<p class="text-muted" style="font-size: 12px; margin-top: 8px; color: #6c757d;">스크롤하여 더 많은 물품을 확인하세요.</p>' : ''}
                 </div>
 
                 <div class="form-actions">
@@ -556,6 +548,11 @@ class ScheduleManager {
             [scheduleId]
         );
 
+        // 스케줄 날짜 추출 (한국 시간 기준)
+        const callTimeDate = new Date(schedule.call_time);
+        const scheduleDate = new Date(callTimeDate.getTime() - callTimeDate.getTimezoneOffset() * 60000)
+            .toISOString().split('T')[0];
+        
         // 해당 공연에 참여 가능한 단원들을 조회
         const eligibleMembers = await window.app.dbAll(`
             SELECT m.*, mp.available_roles 
@@ -565,10 +562,13 @@ class ScheduleManager {
             ORDER BY m.name
         `, [performance.id]);
 
-        console.log('Eligible members:', eligibleMembers);
-        console.log('Performance roles:', roles);
+        // 해당 날짜에 개인 스케줄이 있는 배우 ID 목록 조회
+        const unavailableMemberIds = await window.app.dbAll(`
+            SELECT member_id FROM personal_schedules WHERE date = ?
+        `, [scheduleDate]);
+        const unavailableIds = unavailableMemberIds.map(row => row.member_id);
 
-        // 만약 해당 공연에 참여 가능한 단원이 없다면, 모든 단원을 보여줌
+        // 만약 해당 공연에 참여 가능한 단원이 없다면, 모든 단원을 보여줌 (개인 스케줄 표기)
         let allMembers = eligibleMembers;
         if (eligibleMembers.length === 0) {
             allMembers = await window.app.dbAll(`
@@ -587,15 +587,19 @@ class ScheduleManager {
                         const availableRoles = JSON.parse(member.available_roles || '[]');
                         return availableRoles.includes(role);
                     })
-                    .map(member => 
-                        `<option value="${member.id}" ${member.id == currentAssignment?.member_id ? 'selected' : ''}>${member.name}</option>`
-                    ).join('');
+                    .map(member => {
+                        const hasPersonalSchedule = unavailableIds.includes(member.id);
+                        const displayName = hasPersonalSchedule ? `${member.name} (개인스케줄)` : member.name;
+                        return `<option value="${member.id}" ${member.id == currentAssignment?.member_id ? 'selected' : ''}>${displayName}</option>`;
+                    }).join('');
             } else {
-                // 공연별 가능한 역할이 설정되지 않은 경우 모든 단원을 보여줌
+                // 공연별 가능한 역할이 설정되지 않은 경우 모든 단원을 보여줌 (개인 스케줄 표기)
                 memberOptions = allMembers
-                    .map(member => 
-                        `<option value="${member.id}" ${member.id == currentAssignment?.member_id ? 'selected' : ''}>${member.name}</option>`
-                    ).join('');
+                    .map(member => {
+                        const hasPersonalSchedule = unavailableIds.includes(member.id);
+                        const displayName = hasPersonalSchedule ? `${member.name} (개인스케줄)` : member.name;
+                        return `<option value="${member.id}" ${member.id == currentAssignment?.member_id ? 'selected' : ''}>${displayName}</option>`;
+                    }).join('');
             }
 
             return `
@@ -615,10 +619,19 @@ class ScheduleManager {
             [scheduleId]
         );
 
+        // 해당 날짜에 개인 스케줄이 있는 배우 수 확인
+        const unavailableCount = await window.app.dbGet(`
+            SELECT COUNT(DISTINCT m.id) as count
+            FROM members m
+            INNER JOIN personal_schedules ps ON m.id = ps.member_id 
+            WHERE ps.date = ?
+        `, [scheduleDate]);
+
         const modalContent = `
             <h3>수동 배정 - ${schedule.performance_name}</h3>
             <p><strong>일시:</strong> ${window.app.formatDateTime(schedule.call_time)} (콜) / ${window.app.formatDateTime(schedule.start_time)} (시작)</p>
             <p><strong>장소:</strong> ${schedule.venue}</p>
+            ${unavailableCount.count > 0 ? `<p style="color: #f39c12; font-weight: 600;"><strong>알림:</strong> ${unavailableCount.count}명의 배우가 개인 일정이 등록되어 있습니다. 이름 옆에 (개인스케줄) 표기를 확인하세요.</p>` : ''}
             
             <form id="manual-assign-form" data-schedule-id="${scheduleId}">
                 <div class="assignment-section">

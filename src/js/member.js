@@ -317,10 +317,12 @@ class MemberManager {
             }
 
             try {
+                console.log('Saving personal schedule:', { memberId, date, reason });
                 await window.app.dbRun(
                     'INSERT OR REPLACE INTO personal_schedules (member_id, date, reason) VALUES (?, ?, ?)',
                     [memberId, date, reason]
                 );
+                console.log('Personal schedule saved successfully');
                 
                 this.showEditMemberModal(memberId);
             } catch (error) {
