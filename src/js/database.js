@@ -103,6 +103,13 @@ class Database {
                 description TEXT,
                 is_active BOOLEAN DEFAULT 1,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+            `CREATE TABLE IF NOT EXISTS vehicle_types (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`
         ];
 
@@ -165,6 +172,9 @@ class Database {
 
             // 기본 물품 데이터 삽입
             this.insertDefaultEquipment();
+            
+            // 기본 차종 데이터 삽입
+            this.insertDefaultVehicleTypes();
         } catch (err) {
             console.error('데이터베이스 마이그레이션 실패:', err);
         }
@@ -195,6 +205,32 @@ class Database {
             }
         } catch (err) {
             console.error('기본 물품 데이터 삽입 실패:', err);
+        }
+    }
+
+    insertDefaultVehicleTypes() {
+        try {
+            const defaultVehicleTypes = [
+                { name: '스타렉스', description: '중형 승합차' },
+                { name: '카니발', description: '대형 승합차' },
+                { name: '카니발 2', description: '대형 승합차 2호' },
+                { name: '그외', description: '기타 차량' }
+            ];
+
+            // 기존 데이터가 있는지 확인
+            const existingCount = this.db.prepare('SELECT COUNT(*) as count FROM vehicle_types').get();
+            
+            if (existingCount.count === 0) {
+                const insertStmt = this.db.prepare('INSERT INTO vehicle_types (name, description) VALUES (?, ?)');
+                
+                for (const vehicleType of defaultVehicleTypes) {
+                    insertStmt.run(vehicleType.name, vehicleType.description);
+                }
+                
+                console.log('기본 차종 데이터 삽입 완료');
+            }
+        } catch (err) {
+            console.error('기본 차종 데이터 삽입 실패:', err);
         }
     }
 

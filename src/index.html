@@ -34,6 +34,10 @@
                     <span class="icon">📦</span>
                     물품 관리
                 </button>
+                <button class="nav-btn" data-view="vehicles">
+                    <span class="icon">🚗</span>
+                    차종 관리
+                </button>
             </div>
         </nav>
 
@@ -128,6 +132,16 @@
                     <div id="equipment-list" class="list-container"></div>
                 </div>
             </div>
+
+            <div id="vehicles-view" class="view">
+                <div class="view-header">
+                    <h2>차종 관리</h2>
+                    <button id="add-vehicle-type" class="btn btn-primary">차종 추가</button>
+                </div>
+                <div class="content-grid">
+                    <div id="vehicles-list" class="list-container"></div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -143,6 +157,7 @@
     <script src="js/member.js"></script>
     <script src="js/schedule.js"></script>
     <script src="js/equipment.js"></script>
+    <script src="js/vehicles.js"></script>
     <script src="js/calendar.js"></script>
 </body>
 </html>

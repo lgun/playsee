@@ -1014,9 +1014,9 @@ body {
 .practice-schedule {
     margin-top: 30px;
     padding: 20px;
-    background: #f8f9fa;
+    background: rgb(250, 191, 143); /* 연습 칸 연주황 */
     border-radius: 8px;
-    border-left: 4px solid #3498db;
+    border-left: 4px solid #e67e22;
 }
 
 .practice-schedule h4 {
@@ -1845,6 +1845,124 @@ textarea#member-memo:focus {
     
     .monthly-schedule-item .schedule-members {
         font-size: 8px;
+    }
+}
+
+/* 통합 주간 테이블 스타일 */
+.unified-weekly-table {
+    width: 100%;
+    margin-bottom: 20px;
+    border-collapse: collapse;
+}
+
+.unified-weekly-table th,
+.unified-weekly-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 12px;
+}
+
+.unified-weekly-table th {
+    background-color: #ffff00; /* 노랑 */
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+/* tbody 안의 row-header만 기본 색으로 */
+.unified-weekly-table tbody .row-header {
+    background-color: rgb(218, 238, 243); /* 기본 색 */
+    font-weight: 600;
+    color: #495057;
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+.unified-weekly-table .schedule-cell {
+    position: relative;
+    cursor: pointer;
+    line-height: 1.3;
+    min-height: 40px;
+    background-color: rgb(218, 238, 243); /* 기본 색 */
+}
+
+.unified-weekly-table .schedule-cell:hover {
+    background-color: #f8f9fa;
+}
+
+.unified-weekly-table .performance-cell:hover {
+    background-color: #fff3a0 !important;
+    cursor: pointer;
+    transform: scale(1.02);
+    transition: all 0.2s;
+}
+
+.unified-weekly-table .member-cell:hover {
+    background-color: #e8d5f0 !important;
+    cursor: pointer;
+    transform: scale(1.02);
+    transition: all 0.2s;
+}
+
+.unified-weekly-table .performance-row .schedule-cell {
+    background-color: rgb(218, 238, 243); /* 기본 색 */
+    font-weight: 500;
+}
+
+.unified-weekly-table .member-row .schedule-cell {
+    background-color: rgb(204, 192, 218); /* 단원 이름칸 */
+    color: #495057;
+}
+
+.unified-weekly-table .equipment-row .schedule-cell {
+    background-color: rgb(228, 223, 236); /* 물품 색 */
+    color: #495057;
+}
+
+.unified-weekly-table .departure-row .schedule-cell {
+    background-color: rgb(218, 238, 243); /* 기본 색 */
+    color: #495057;
+}
+
+.unified-weekly-table .separator-row {
+    height: 8px;
+}
+
+.unified-weekly-table .separator-cell {
+    background-color: #6c757d;
+    border: none;
+    height: 4px;
+    padding: 0;
+}
+
+/* 공연명 강조 */
+.unified-weekly-table .performance-row strong {
+    color: #8e44ad;
+    font-size: 13px;
+}
+
+/* 운전자 밑줄 표시 */
+.unified-weekly-table .member-row u {
+    text-decoration: underline;
+    font-weight: 600;
+    color: inherit;
+}
+
+/* 반응형 조정 */
+@media (max-width: 1200px) {
+    .unified-weekly-table th,
+    .unified-weekly-table td {
+        padding: 6px;
+        font-size: 11px;
+    }
+    
+    .unified-weekly-table .row-header {
+        min-width: 60px;
+    }
+    
+    .unified-weekly-table .performance-row strong {
+        font-size: 12px;
     }
 }
 

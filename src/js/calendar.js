@@ -105,8 +105,8 @@ class Calendar {
                 
                 whereClause = `date(s.call_time) BETWEEN ? AND ?`;
                 params = [
-                    startOfWeek.toISOString().split('T')[0],
-                    endOfWeek.toISOString().split('T')[0]
+                    new Date(startOfWeek.getTime() - startOfWeek.getTimezoneOffset() * 60000).toISOString().split('T')[0],
+                    new Date(endOfWeek.getTime() - endOfWeek.getTimezoneOffset() * 60000).toISOString().split('T')[0]
                 ];
             }
             
@@ -390,37 +390,28 @@ class Calendar {
         const saturday = new Date(monday);
         saturday.setDate(saturday.getDate() + 5); // 토요일까지
         
-        // 주간 스케줄들을 수집
-        const weekSchedules = [];
+        // 주간 스케줄들을 날짜별로 수집
+        const schedulesByDay = [];
+        const dates = [];
+        const days = ['월(Mon)', '화(Tue)', '수(Wed)', '목(Thu)', '금(Fri)', '토(Sat)'];
+        
         for (let i = 0; i < 6; i++) {
             const dayDate = new Date(monday);
             dayDate.setDate(dayDate.getDate() + i);
+            dates.push(dayDate.getDate());
             const dateStr = this.formatDateForComparison(dayDate);
             const daySchedules = this.getSchedulesForDate(dateStr);
-            weekSchedules.push(...daySchedules);
+            schedulesByDay.push(daySchedules);
         }
-        
-        // 공연별로 그룹화
-        const performanceGroups = {};
-        weekSchedules.forEach(schedule => {
-            if (!performanceGroups[schedule.performance_name]) {
-                performanceGroups[schedule.performance_name] = [];
-            }
-            performanceGroups[schedule.performance_name].push(schedule);
-        });
         
         // 주간 일정표 생성
         let weeklyHTML = `
             <div class="weekly-schedule-table">
                 <h3>${monday.toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric' })} ~ ${saturday.toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric' })} 공연 일정표</h3>
+                ${this.generateUnifiedWeeklyTable(schedulesByDay, days, dates)}
+            </div>
         `;
         
-        // 각 공연별 테이블 생성
-        Object.entries(performanceGroups).forEach(([performanceName, schedules]) => {
-            weeklyHTML += this.generatePerformanceTable(performanceName, schedules, monday);
-        });
-        
-        // 연습 일정 추가 (임시로 빈 섹션 추가)
         weeklyHTML += `
                 <div class="practice-schedule">
                     <h4>연습(공지)</h4>
@@ -428,20 +419,169 @@ class Calendar {
                         연습 일정이 없습니다.
                     </div>
                 </div>
-            </div>
         `;
+        
         
         container.innerHTML = weeklyHTML;
         
         // 클릭 이벤트 추가
-        container.querySelectorAll('.schedule-cell').forEach(cell => {
+        container.querySelectorAll('.performance-cell').forEach(cell => {
             const scheduleId = cell.dataset.scheduleId;
             if (scheduleId) {
                 cell.addEventListener('click', () => {
-                    window.scheduleManager.showManualAssignModal(parseInt(scheduleId));
+                    // 캘린더 탭에서 독립적으로 작동하는 스케줄 수정 모달
+                    this.showCalendarEditModal(parseInt(scheduleId));
                 });
             }
         });
+        
+        container.querySelectorAll('.member-cell').forEach(cell => {
+            const scheduleId = cell.dataset.scheduleId;
+            if (scheduleId) {
+                cell.addEventListener('click', () => {
+                    // 캘린더 탭에서 독립적으로 작동하는 배정 모달
+                    this.showCalendarAssignModal(parseInt(scheduleId));
+                });
+            }
+        });
+    }
+    
+    generateUnifiedWeeklyTable(schedulesByDay, days, dates) {
+        // 각 날짜별로 최대 공연 수를 찾아서 테이블 행 수 결정
+        const maxSchedulesPerDay = Math.max(...schedulesByDay.map(daySchedules => daySchedules.length), 1);
+        
+        let tableHTML = `
+            <table class="performance-table unified-weekly-table">
+                <thead>
+                    <tr>
+                        <th class="row-header">요일</th>
+                        ${days.map(day => `<th>${day}</th>`).join('')}
+                    </tr>
+                    <tr>
+                        <th class="row-header">일</th>
+                        ${dates.map(date => `<th>${date}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        // 각 공연 슬롯별로 행 생성
+        for (let scheduleIndex = 0; scheduleIndex < maxSchedulesPerDay; scheduleIndex++) {
+            // 공연명 행
+            tableHTML += `
+                <tr class="performance-row">
+                    <td class="row-header">공연</td>
+                    ${schedulesByDay.map(daySchedules => {
+                        const schedule = daySchedules[scheduleIndex];
+                        if (!schedule) {
+                            return '<td class="schedule-cell empty-cell">-</td>';
+                        }
+                        
+                        const timeDisplay = this.formatTime(schedule.start_time);
+                        return `<td class="schedule-cell performance-cell" data-schedule-id="${schedule.id}">
+                            ${schedule.venue}<br/>
+                            ${timeDisplay}<br/>
+                            <strong>${schedule.performance_name}</strong>
+                        </td>`;
+                    }).join('')}
+                </tr>
+            `;
+            
+            // 단원 행
+            tableHTML += `
+                <tr class="member-row">
+                    <td class="row-header">단원</td>
+                    ${schedulesByDay.map(daySchedules => {
+                        const schedule = daySchedules[scheduleIndex];
+                        if (!schedule) {
+                            return '<td class="schedule-cell empty-cell">-</td>';
+                        }
+                        
+                        // 차량 정보에서 운전자 추출
+                        const vehicleInfo = schedule.vehicle_info ? schedule.vehicle_info.split(',') : [];
+                        const driverNames = vehicleInfo.map(info => {
+                            const [vehicleType, driverName] = info.split(':');
+                            return driverName ? driverName.trim() : null;
+                        }).filter(name => name && name !== '');
+                        
+                        const memberNames = schedule.assignments ? 
+                            schedule.assignments.split(',').map(a => {
+                                const [name, role] = a.split(':');
+                                const firstName = name.split(' ').slice(-1)[0]; // 성 제외한 이름
+                                const isDriver = driverNames.includes(name);
+                                return isDriver ? `<u>${firstName}</u>` : firstName;
+                            }) : [];
+                        
+                        return `<td class="schedule-cell member-cell" data-schedule-id="${schedule.id}">${memberNames.join(', ') || '-'}</td>`;
+                    }).join('')}
+                </tr>
+            `;
+            
+            // 물품 행
+            tableHTML += `
+                <tr class="equipment-row">
+                    <td class="row-header">물품</td>
+                    ${schedulesByDay.map(daySchedules => {
+                        const schedule = daySchedules[scheduleIndex];
+                        if (!schedule) {
+                            return '<td class="schedule-cell empty-cell">-</td>';
+                        }
+                        
+                        const equipmentList = schedule.equipment_list ? JSON.parse(schedule.equipment_list) : [];
+                        const equipmentStr = equipmentList.join(' / ');
+                        
+                        return `<td class="schedule-cell">${equipmentStr || '-'}</td>`;
+                    }).join('')}
+                </tr>
+            `;
+            
+            // 출발 행
+            tableHTML += `
+                <tr class="departure-row">
+                    <td class="row-header">출발</td>
+                    ${schedulesByDay.map(daySchedules => {
+                        const schedule = daySchedules[scheduleIndex];
+                        if (!schedule) {
+                            return '<td class="schedule-cell empty-cell">-</td>';
+                        }
+                        
+                        // AM/PM 형식으로 시간 포맷
+                        const callTime = new Date(schedule.call_time).toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: true 
+                        });
+                        
+                        // 차량 정보 추출
+                        const vehicleInfo = schedule.vehicle_info ? schedule.vehicle_info.split(',') : [];
+                        const vehicleTypes = vehicleInfo.map(info => {
+                            const [vehicleType, driverName] = info.split(':');
+                            return vehicleType ? vehicleType.trim() : null;
+                        }).filter(type => type);
+                        
+                        const vehicleDisplay = vehicleTypes.length > 0 ? vehicleTypes.join(', ') : '미정';
+                        
+                        return `<td class="schedule-cell">${callTime} / ${vehicleDisplay}</td>`;
+                    }).join('')}
+                </tr>
+            `;
+            
+            // 공연 구분선 (마지막이 아닌 경우)
+            if (scheduleIndex < maxSchedulesPerDay - 1) {
+                tableHTML += `
+                    <tr class="separator-row">
+                        <td colspan="7" class="separator-cell"></td>
+                    </tr>
+                `;
+            }
+        }
+        
+        tableHTML += `
+                </tbody>
+            </table>
+        `;
+        
+        return tableHTML;
     }
     
     generatePerformanceTable(performanceName, schedules, monday) {
@@ -495,7 +635,7 @@ class Calendar {
                                 return `${venue}<br/>${timeDisplay}<br/>${daySchedules[0].performance_name}`;
                             }).join('<br/>');
                             
-                            return `<td class="schedule-cell" data-schedule-id="${daySchedules[0].id}">${performanceInfo}</td>`;
+                            return `<td class="schedule-cell performance-cell" data-schedule-id="${daySchedules[0].id}">${performanceInfo}</td>`;
                         }).join('')}
                     </tr>
                     <tr>
@@ -507,15 +647,23 @@ class Calendar {
                             
                             const memberNames = daySchedules.flatMap(schedule => {
                                 if (!schedule.assignments) return [];
+                                
+                                // 차량 정보에서 운전자 추출
+                                const vehicleInfo = schedule.vehicle_info ? schedule.vehicle_info.split(',') : [];
+                                const driverNames = vehicleInfo.map(info => {
+                                    const [vehicleType, driverName] = info.split(':');
+                                    return driverName ? driverName.trim() : null;
+                                }).filter(name => name && name !== '');
+                                
                                 return schedule.assignments.split(',').map(a => {
                                     const [name, role] = a.split(':');
                                     const firstName = name.split(' ').slice(-1)[0]; // 성 제외한 이름
-                                    const isDriver = schedule.driver_name && name === schedule.driver_name;
+                                    const isDriver = driverNames.includes(name);
                                     return isDriver ? `<u>${firstName}</u>` : firstName;
                                 });
                             });
                             
-                            return `<td class="schedule-cell">${memberNames.join(', ') || '-'}</td>`;
+                            return `<td class="schedule-cell member-cell" data-schedule-id="${daySchedules[0]?.id}">${memberNames.join(', ') || '-'}</td>`;
                         }).join('')}
                     </tr>
                     <tr>
@@ -542,12 +690,20 @@ class Calendar {
                             
                             const departureInfo = daySchedules.map(schedule => {
                                 const callTime = new Date(schedule.call_time).toLocaleTimeString('en-US', { 
-                                    hour: 'numeric', 
+                                    hour: '2-digit', 
                                     minute: '2-digit', 
                                     hour12: true 
                                 });
-                                const vehicle = schedule.vehicle_type || '미정';
-                                return `${callTime} / ${vehicle}`;
+                                
+                                // 차량 정보 추출
+                                const vehicleInfo = schedule.vehicle_info ? schedule.vehicle_info.split(',') : [];
+                                const vehicleTypes = vehicleInfo.map(info => {
+                                    const [vehicleType, driverName] = info.split(':');
+                                    return vehicleType ? vehicleType.trim() : null;
+                                }).filter(type => type);
+                                
+                                const vehicleDisplay = vehicleTypes.length > 0 ? vehicleTypes.join(', ') : '미정';
+                                return `${callTime} / ${vehicleDisplay}`;
                             });
                             
                             return `<td class="schedule-cell">${departureInfo.join('<br/>')}</td>`;
@@ -667,7 +823,7 @@ class Calendar {
     }
 
     formatDateForComparison(date) {
-        return date.toISOString().split('T')[0];
+        return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
     }
 
     formatTime(datetime) {
@@ -679,6 +835,329 @@ class Calendar {
 
     async refresh() {
         await this.loadSchedules();
+    }
+
+    // 캘린더에서 사용하는 독립 스케줄 수정 모달
+    async showCalendarEditModal(scheduleId) {
+        try {
+            // 스케줄 정보 조회
+            const schedule = await window.app.dbGet('SELECT * FROM schedules WHERE id = ?', [scheduleId]);
+            if (!schedule) {
+                window.app.alert('스케줄을 찾을 수 없습니다.');
+                return;
+            }
+
+            // 공연 목록 조회
+            const performances = await window.app.dbAll('SELECT * FROM performances ORDER BY name');
+            const performanceOptions = performances.map(perf => 
+                `<option value="${perf.id}" ${perf.id == schedule.performance_id ? 'selected' : ''}>${perf.name}</option>`
+            ).join('');
+
+            // 날짜/시간 포맷
+            const callTimeDate = new Date(schedule.call_time);
+            const startTimeDate = new Date(schedule.start_time);
+            const scheduleDateStr = new Date(callTimeDate.getTime() - callTimeDate.getTimezoneOffset() * 60000)
+                .toISOString().split('T')[0];
+            const callTimeStr = callTimeDate.toTimeString().slice(0, 5);
+            const startTimeStr = startTimeDate.toTimeString().slice(0, 5);
+
+            // 물품 목록 조회
+            const equipmentList = schedule.equipment_list ? JSON.parse(schedule.equipment_list) : [];
+            const activeEquipment = await window.app.dbAll('SELECT * FROM equipment WHERE is_active = 1 ORDER BY name');
+            const equipmentCheckboxes = activeEquipment.map(item => `
+                <label class="checkbox-item">
+                    <input type="checkbox" name="equipment" value="${item.name}" ${equipmentList.includes(item.name) ? 'checked' : ''}> 
+                    ${item.name}
+                </label>
+            `).join('');
+
+            const modalContent = `
+                <h3>스케줄 수정</h3>
+                <form id="calendar-edit-schedule-form" data-id="${schedule.id}">
+                    <div class="form-group">
+                        <label for="performance-select">공연 선택 *</label>
+                        <select id="performance-select" required>
+                            <option value="">공연을 선택하세요</option>
+                            ${performanceOptions}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="schedule-date">공연 날짜 *</label>
+                        <input type="date" id="schedule-date" value="${scheduleDateStr}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="call-time">콜타임 *</label>
+                        <input type="time" id="call-time" value="${callTimeStr}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="start-time">스타트타임 *</label>
+                        <input type="time" id="start-time" value="${startTimeStr}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="venue">장소 *</label>
+                        <input type="text" id="venue" value="${schedule.venue}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>준비 물품</label>
+                        <div class="checkbox-group equipment-checkboxes">
+                            ${equipmentCheckboxes || '<p>등록된 물품이 없습니다.</p>'}
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="window.app.closeModal()">취소</button>
+                        <button type="submit" class="btn btn-primary">수정</button>
+                    </div>
+                </form>
+            `;
+
+            window.app.showModal(modalContent);
+
+            // 폼 이벤트 바인딩
+            document.getElementById('calendar-edit-schedule-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.handleCalendarEditSubmit(scheduleId);
+            });
+
+        } catch (error) {
+            console.error('스케줄 수정 모달 오류:', error);
+            window.app.alert('스케줄 수정 모달을 열 수 없습니다.');
+        }
+    }
+
+    // 캘린더에서 사용하는 독립 배정 모달
+    async showCalendarAssignModal(scheduleId) {
+        try {
+            // 스케줄 정보 조회
+            const schedule = await window.app.dbGet('SELECT * FROM schedules WHERE id = ?', [scheduleId]);
+            if (!schedule) {
+                window.app.alert('스케줄을 찾을 수 없습니다.');
+                return;
+            }
+
+            // 공연 정보 조회
+            const performance = await window.app.dbGet('SELECT * FROM performances WHERE id = ?', [schedule.performance_id]);
+            const roles = JSON.parse(performance.roles || '[]');
+
+            // 현재 배정 정보 조회
+            const currentAssignments = await window.app.dbAll(
+                'SELECT * FROM assignments WHERE schedule_id = ?',
+                [scheduleId]
+            );
+
+            // 단원 목록 조회
+            const members = await window.app.dbAll('SELECT * FROM members ORDER BY name');
+            
+            // 현재 차량 배정 조회
+            const currentVehicles = await window.app.dbAll(
+                'SELECT * FROM schedule_vehicles WHERE schedule_id = ?',
+                [scheduleId]
+            );
+            
+            const roleSelects = roles.map(role => {
+                const currentAssignment = currentAssignments.find(a => a.role === role);
+                const memberOptions = members.map(member => 
+                    `<option value="${member.id}" ${member.id == currentAssignment?.member_id ? 'selected' : ''}>${member.name}</option>`
+                ).join('');
+
+                return `
+                    <div class="form-group">
+                        <label for="role-${role}">${role}</label>
+                        <select id="role-${role}" data-role="${role}">
+                            <option value="">선택 안함</option>
+                            ${memberOptions}
+                        </select>
+                    </div>
+                `;
+            }).join('');
+
+            const modalContent = `
+                <h3>배정 - ${performance.name}</h3>
+                <p><strong>일시:</strong> ${window.app.formatDateTime(schedule.call_time)} (콜) / ${window.app.formatDateTime(schedule.start_time)} (시작)</p>
+                <p><strong>장소:</strong> ${schedule.venue}</p>
+                
+                <form id="calendar-assign-form" data-schedule-id="${scheduleId}">
+                    <div class="assignment-section">
+                        <h4>배우 배정</h4>
+                        ${roleSelects}
+                    </div>
+
+                    <div class="assignment-section">
+                        <h4>차량 및 운전자 배정</h4>
+                        <div id="vehicle-assignments">
+                            ${await this.generateCalendarVehicleAssignments(currentVehicles, members)}
+                        </div>
+                        <button type="button" id="add-vehicle-btn" class="btn btn-secondary btn-sm">차량 추가</button>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="window.app.closeModal()">취소</button>
+                        <button type="submit" class="btn btn-primary">배정 저장</button>
+                    </div>
+                </form>
+            `;
+
+            window.app.showModal(modalContent);
+
+            // 폼 이벤트 바인딩
+            document.getElementById('calendar-assign-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.handleCalendarAssignSubmit(scheduleId, roles);
+            });
+
+            // 차량 추가 버튼 이벤트
+            document.getElementById('add-vehicle-btn').addEventListener('click', async () => {
+                await this.addCalendarVehicleAssignment(members);
+            });
+
+        } catch (error) {
+            console.error('배정 모달 오류:', error);
+            window.app.alert('배정 모달을 열 수 없습니다.');
+        }
+    }
+
+    // 스케줄 수정 처리
+    async handleCalendarEditSubmit(scheduleId) {
+        try {
+            const performanceId = document.getElementById('performance-select').value;
+            const date = document.getElementById('schedule-date').value;
+            const callTime = document.getElementById('call-time').value;
+            const startTime = document.getElementById('start-time').value;
+            const venue = document.getElementById('venue').value;
+
+            if (!performanceId || !date || !callTime || !startTime || !venue) {
+                window.app.alert('모든 필드를 입력해주세요.');
+                return;
+            }
+
+            const callDateTime = `${date} ${callTime}:00`;
+            const startDateTime = `${date} ${startTime}:00`;
+
+            // 선택된 물품 수집
+            const selectedEquipment = Array.from(document.querySelectorAll('input[name="equipment"]:checked'))
+                .map(cb => cb.value);
+
+            await window.app.dbRun(
+                'UPDATE schedules SET performance_id = ?, call_time = ?, start_time = ?, venue = ?, equipment_list = ? WHERE id = ?',
+                [performanceId, callDateTime, startDateTime, venue, JSON.stringify(selectedEquipment), scheduleId]
+            );
+
+            window.app.closeModal();
+            window.app.alert('스케줄이 수정되었습니다.');
+            
+            // 캘린더 새로고침
+            await this.loadSchedules();
+
+        } catch (error) {
+            console.error('스케줄 수정 오류:', error);
+            window.app.alert('스케줄 수정 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 배정 처리
+    async handleCalendarAssignSubmit(scheduleId, roles) {
+        try {
+            // 기존 배정 삭제
+            await window.app.dbRun('DELETE FROM assignments WHERE schedule_id = ?', [scheduleId]);
+            await window.app.dbRun('DELETE FROM schedule_vehicles WHERE schedule_id = ?', [scheduleId]);
+
+            // 새 배정 저장
+            for (const role of roles) {
+                const memberId = document.getElementById(`role-${role}`).value;
+                if (memberId) {
+                    await window.app.dbRun(
+                        'INSERT INTO assignments (schedule_id, member_id, role, is_manual) VALUES (?, ?, ?, 1)',
+                        [scheduleId, memberId, role]
+                    );
+                }
+            }
+
+            // 차량 배정 저장
+            const vehicleAssignments = document.querySelectorAll('.vehicle-assignment');
+            for (const assignment of vehicleAssignments) {
+                const vehicleType = assignment.querySelector('.vehicle-type').value;
+                const driverId = assignment.querySelector('.vehicle-driver').value;
+                
+                if (vehicleType) {
+                    await window.app.dbRun(
+                        'INSERT INTO schedule_vehicles (schedule_id, vehicle_type, driver_id) VALUES (?, ?, ?)',
+                        [scheduleId, vehicleType, driverId || null]
+                    );
+                }
+            }
+
+            window.app.closeModal();
+            window.app.alert('배정이 저장되었습니다.');
+            
+            // 캘린더 새로고침
+            await this.loadSchedules();
+
+        } catch (error) {
+            console.error('배정 저장 오류:', error);
+            window.app.alert('배정 저장 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 차량 배정 HTML 생성
+    async generateCalendarVehicleAssignments(currentVehicles, members) {
+        if (currentVehicles.length === 0) {
+            return await this.generateCalendarVehicleAssignment(null, 0, members);
+        }
+        
+        const assignments = await Promise.all(
+            currentVehicles.map((vehicle, index) => 
+                this.generateCalendarVehicleAssignment(vehicle, index, members)
+            )
+        );
+        return assignments.join('');
+    }
+
+    // 개별 차량 배정 HTML 생성
+    async generateCalendarVehicleAssignment(vehicle, index, members) {
+        const memberOptions = members.map(member => 
+            `<option value="${member.id}" ${vehicle && member.id == vehicle.driver_id ? 'selected' : ''}>${member.name}</option>`
+        ).join('');
+
+        // 데이터베이스에서 활성 차종 목록 가져오기
+        const vehicleTypes = await window.app.dbAll('SELECT * FROM vehicle_types WHERE is_active = 1 ORDER BY name');
+        const vehicleTypeOptions = vehicleTypes.map(vt => 
+            `<option value="${vt.name}" ${vehicle && vehicle.vehicle_type === vt.name ? 'selected' : ''}>${vt.name}</option>`
+        ).join('');
+
+        return `
+            <div class="vehicle-assignment" data-index="${index}">
+                <div class="vehicle-row">
+                    <div class="vehicle-type-group">
+                        <label>차종</label>
+                        <select class="vehicle-type" required>
+                            <option value="">차종 선택</option>
+                            ${vehicleTypeOptions}
+                        </select>
+                    </div>
+                    <div class="vehicle-driver-group">
+                        <label>운전자</label>
+                        <select class="vehicle-driver">
+                            <option value="">선택하세요</option>
+                            ${memberOptions}
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-danger btn-sm remove-vehicle" onclick="this.parentElement.parentElement.remove()">삭제</button>
+                </div>
+            </div>
+        `;
+    }
+
+    // 차량 배정 추가
+    async addCalendarVehicleAssignment(members) {
+        const container = document.getElementById('vehicle-assignments');
+        const currentCount = container.querySelectorAll('.vehicle-assignment').length;
+        const newAssignment = await this.generateCalendarVehicleAssignment(null, currentCount, members);
+        container.insertAdjacentHTML('beforeend', newAssignment);
     }
 }
 

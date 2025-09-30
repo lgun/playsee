@@ -473,7 +473,10 @@ class ScheduleManager {
 
         const callTimeDate = new Date(schedule.call_time);
         const startTimeDate = new Date(schedule.start_time);
-        const scheduleDateStr = callTimeDate.toISOString().split('T')[0];
+        
+        // 타임존 오프셋을 고려하여 올바른 날짜 표시
+        const scheduleDateStr = new Date(callTimeDate.getTime() - callTimeDate.getTimezoneOffset() * 60000)
+            .toISOString().split('T')[0];
         const callTimeStr = callTimeDate.toTimeString().slice(0, 5);
         const startTimeStr = startTimeDate.toTimeString().slice(0, 5);
 
