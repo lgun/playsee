@@ -38,6 +38,10 @@
                     <span class="icon">🚗</span>
                     차종 관리
                 </button>
+                <button class="nav-btn" data-view="performance-stats">
+                    <span class="icon">📊</span>
+                    공연 현황
+                </button>
             </div>
         </nav>
 
@@ -142,6 +146,58 @@
                     <div id="vehicles-list" class="list-container"></div>
                 </div>
             </div>
+
+            <div id="performance-stats-view" class="view">
+                <div class="view-header">
+                    <h2>공연 현황</h2>
+                </div>
+                
+                <!-- 통계 요약 영역 -->
+                <div class="stats-summary">
+                    <div class="stats-card">
+                        <h3>전체 공연</h3>
+                        <span class="stats-number" id="total-performances">0</span>
+                    </div>
+                    <div class="stats-card">
+                        <h3>완료</h3>
+                        <span class="stats-number completed" id="completed-performances">0</span>
+                    </div>
+                    <div class="stats-card">
+                        <h3>취소</h3>
+                        <span class="stats-number cancelled" id="cancelled-performances">0</span>
+                    </div>
+                </div>
+
+                <!-- 검색 및 필터 영역 -->
+                <div class="performance-stats-controls">
+                    <div class="filter-controls">
+                        <div class="date-range-control">
+                            <label>기간:</label>
+                            <input type="date" id="stats-start-date">
+                            <span>~</span>
+                            <input type="date" id="stats-end-date">
+                            <button id="all-period-btn" class="btn btn-secondary btn-sm">전체</button>
+                        </div>
+                        <div class="venue-search-control">
+                            <label>장소:</label>
+                            <input type="text" id="venue-search" placeholder="장소명 검색">
+                        </div>
+                        <div class="sort-control">
+                            <label>정렬:</label>
+                            <select id="sort-option">
+                                <option value="recent">최근 공연순</option>
+                                <option value="completed">완료 수순</option>
+                                <option value="cancelled">취소 수순</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 공연 현황 리스트 -->
+                <div class="content-grid">
+                    <div id="performance-stats-list" class="list-container"></div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -158,6 +214,7 @@
     <script src="js/schedule.js"></script>
     <script src="js/equipment.js"></script>
     <script src="js/vehicles.js"></script>
+    <script src="js/performance-stats.js"></script>
     <script src="js/calendar.js"></script>
 </body>
 </html>

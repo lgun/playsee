@@ -264,13 +264,31 @@ class Calendar {
 
                     cell.appendChild(dayNumber);
 
+                    // 날짜 셀 히든 버튼 추가
+                    const cellActions = document.createElement('div');
+                    cellActions.className = 'monthly-cell-actions';
+                    cellActions.innerHTML = `
+                        <button class="monthly-action-btn add-schedule-btn" title="스케줄 추가">+</button>
+                    `;
+                    cell.appendChild(cellActions);
+
                     // 스케줄 표시
                     this.renderDaySchedules(cell, daySchedules);
 
-                    // 클릭 이벤트 (날짜 복사)
+                    // 스케줄 추가 버튼 이벤트
+                    const addScheduleBtn = cellActions.querySelector('.add-schedule-btn');
                     const clickDate = new Date(cellDate);
-                    cell.addEventListener('click', () => {
-                        this.showDayDetail(clickDate, daySchedules);
+                    addScheduleBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.showAddScheduleModal(clickDate);
+                    });
+
+                    // 클릭 이벤트 (날짜 복사)
+                    cell.addEventListener('click', (e) => {
+                        // 버튼 클릭이 아닌 경우만 상세 보기
+                        if (!e.target.closest('.monthly-cell-actions') && !e.target.closest('.schedule-item-actions')) {
+                            this.showDayDetail(clickDate, daySchedules);
+                        }
                     });
                 } else {
                     // 빈 셀
@@ -333,6 +351,15 @@ class Calendar {
                 `;
                 scheduleDiv.appendChild(scheduleContent);
 
+                // 스케줄 아이템 히든 버튼 추가
+                const scheduleActions = document.createElement('div');
+                scheduleActions.className = 'schedule-item-actions';
+                scheduleActions.innerHTML = `
+                    <button class="schedule-action-btn edit" title="수정">수정</button>
+                    <button class="schedule-action-btn assign" title="배정">배정</button>
+                `;
+                scheduleDiv.appendChild(scheduleActions);
+
                 // 단원 목록 표기
                 const membersList = this.getMembersForSchedules(venueSchedules);
                 if (membersList.length > 0) {
@@ -342,10 +369,27 @@ class Calendar {
                     scheduleDiv.appendChild(membersDiv);
                 }
 
-                // 클릭 이벤트
-                scheduleDiv.addEventListener('click', (e) => {
+                // 히든 버튼 이벤트
+                const editBtn = scheduleActions.querySelector('.edit');
+                const assignBtn = scheduleActions.querySelector('.assign');
+                
+                editBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    window.scheduleManager.showManualAssignModal(venueSchedules[0].id);
+                    this.showCalendarEditModal(venueSchedules[0].id);
+                });
+                
+                assignBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showCalendarAssignModal(venueSchedules[0].id);
+                });
+
+                // 기본 클릭 이벤트 (배정 모달)
+                scheduleDiv.addEventListener('click', (e) => {
+                    // 버튼이 아닌 경우만 배정 모달 표시
+                    if (!e.target.closest('.schedule-item-actions')) {
+                        e.stopPropagation();
+                        this.showCalendarAssignModal(venueSchedules[0].id);
+                    }
                 });
 
                 cell.appendChild(scheduleDiv);
@@ -831,6 +875,111 @@ class Calendar {
             hour: '2-digit', 
             minute: '2-digit' 
         });
+    }
+
+    // 캘린더에서 스케줄 추가 모달 (날짜 자동 지정)
+    async showAddScheduleModal(selectedDate) {
+        try {
+            // 공연 목록 조회
+            const performances = await window.app.dbAll('SELECT * FROM performances ORDER BY name');
+            
+            if (performances.length === 0) {
+                window.app.alert('등록된 공연이 없습니다. 먼저 공연을 등록해주세요.');
+                return;
+            }
+
+            const performanceOptions = performances.map(p => 
+                `<option value="${p.id}">${p.name}</option>`
+            ).join('');
+
+            // 선택된 날짜를 YYYY-MM-DD 형식으로 포맷
+            const dateStr = new Date(selectedDate.getTime() - selectedDate.getTimezoneOffset() * 60000)
+                .toISOString().split('T')[0];
+
+            const modalContent = `
+                <h3>스케줄 추가 - ${selectedDate.toLocaleDateString('ko-KR')}</h3>
+                <form id="calendar-add-schedule-form">
+                    <div class="form-group">
+                        <label for="performance-select">공연 *</label>
+                        <select id="performance-select" required>
+                            <option value="">공연을 선택하세요</option>
+                            ${performanceOptions}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="schedule-date">날짜 *</label>
+                        <input type="date" id="schedule-date" value="${dateStr}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="call-time">콜타임 *</label>
+                        <input type="time" id="call-time" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="start-time">시작시간 *</label>
+                        <input type="time" id="start-time" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="venue">장소 *</label>
+                        <input type="text" id="venue" required placeholder="공연 장소">
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="window.app.closeModal()">취소</button>
+                        <button type="submit" class="btn btn-primary">추가</button>
+                    </div>
+                </form>
+            `;
+
+            window.app.showModal(modalContent);
+
+            // 폼 이벤트 바인딩
+            document.getElementById('calendar-add-schedule-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.handleCalendarAddScheduleSubmit();
+            });
+
+        } catch (error) {
+            console.error('스케줄 추가 모달 오류:', error);
+            window.app.alert('스케줄 추가 모달을 열 수 없습니다.');
+        }
+    }
+
+    // 캘린더에서 스케줄 추가 처리
+    async handleCalendarAddScheduleSubmit() {
+        try {
+            const performanceId = document.getElementById('performance-select').value;
+            const date = document.getElementById('schedule-date').value;
+            const callTime = document.getElementById('call-time').value;
+            const startTime = document.getElementById('start-time').value;
+            const venue = document.getElementById('venue').value;
+
+            if (!performanceId || !date || !callTime || !startTime || !venue) {
+                window.app.alert('모든 필드를 입력해주세요.');
+                return;
+            }
+
+            const callDateTime = `${date} ${callTime}:00`;
+            const startDateTime = `${date} ${startTime}:00`;
+
+            await window.app.dbRun(
+                'INSERT INTO schedules (performance_id, call_time, start_time, venue) VALUES (?, ?, ?, ?)',
+                [performanceId, callDateTime, startDateTime, venue]
+            );
+
+            window.app.closeModal();
+            window.app.alert('스케줄이 추가되었습니다.');
+            
+            // 캘린더 새로고침
+            await this.loadSchedules();
+
+        } catch (error) {
+            console.error('스케줄 추가 오류:', error);
+            window.app.alert('스케줄 추가 중 오류가 발생했습니다.');
+        }
     }
 
     async refresh() {

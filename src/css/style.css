@@ -1781,11 +1781,94 @@ textarea#member-memo:focus {
     cursor: pointer;
     transition: background-color 0.2s ease;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    position: relative;
 }
 
 .monthly-schedule-item:hover {
     background-color: #f0f0f0;
     border-color: #3498db;
+}
+
+/* 월간 캘린더 히든 버튼 스타일 */
+.monthly-cell {
+    position: relative;
+}
+
+.monthly-cell-actions {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    display: none;
+    gap: 2px;
+    z-index: 10;
+}
+
+.monthly-cell:hover .monthly-cell-actions {
+    display: flex;
+}
+
+.monthly-action-btn {
+    background: rgba(52, 152, 219, 0.9);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 3px 6px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.monthly-action-btn:hover {
+    background: rgba(52, 152, 219, 1);
+    transform: scale(1.05);
+}
+
+/* 스케줄 아이템 히든 버튼 */
+.schedule-item-actions {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    display: none;
+    gap: 2px;
+    z-index: 20;
+}
+
+.monthly-schedule-item:hover .schedule-item-actions {
+    display: flex;
+}
+
+.schedule-action-btn {
+    background: rgba(231, 76, 60, 0.9);
+    color: white;
+    border: none;
+    border-radius: 2px;
+    padding: 2px 4px;
+    font-size: 9px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.schedule-action-btn.edit {
+    background: rgba(241, 196, 15, 0.9);
+}
+
+.schedule-action-btn.assign {
+    background: rgba(46, 204, 113, 0.9);
+}
+
+.schedule-action-btn:hover {
+    transform: scale(1.05);
+    opacity: 1;
+}
+
+.schedule-action-btn.edit:hover {
+    background: rgba(241, 196, 15, 1);
+}
+
+.schedule-action-btn.assign:hover {
+    background: rgba(46, 204, 113, 1);
 }
 
 .monthly-schedule-item .schedule-venue {
@@ -1986,5 +2069,237 @@ textarea#member-memo:focus {
     
     .monthly-schedule-item .schedule-members {
         font-size: 7px;
+    }
+}
+
+/* 공연 현황 탭 스타일 */
+.stats-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stats-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-left: 4px solid #3498db;
+}
+
+.stats-card h3 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.stats-number {
+    font-size: 32px;
+    font-weight: bold;
+    color: #3498db;
+    display: block;
+}
+
+.stats-number.completed {
+    color: #27ae60;
+}
+
+.stats-number.cancelled {
+    color: #e74c3c;
+}
+
+.performance-stats-controls {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.performance-stats-controls .filter-controls {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.venue-search-control,
+.sort-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.venue-search-control input,
+.sort-control select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 150px;
+}
+
+.venue-search-control label,
+.sort-control label {
+    font-weight: 600;
+    color: #2c3e50;
+    white-space: nowrap;
+    font-size: 14px;
+}
+
+/* 공연 현황 아이템 스타일 */
+.performance-stats-item {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    padding: 20px;
+    transition: box-shadow 0.2s, transform 0.1s;
+}
+
+.performance-stats-item:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.stats-venue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #3498db;
+}
+
+.venue-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.venue-summary {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.summary-item {
+    text-align: center;
+}
+
+.summary-label {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-bottom: 2px;
+    display: block;
+}
+
+.summary-value {
+    font-size: 18px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.summary-value.completed {
+    color: #27ae60;
+}
+
+.summary-value.cancelled {
+    color: #e74c3c;
+}
+
+.venue-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 15px;
+}
+
+.detail-section h4 {
+    color: #2c3e50;
+    font-size: 14px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.recent-performance {
+    color: #7f8c8d;
+    font-size: 13px;
+    margin-bottom: 5px;
+}
+
+.recent-performance strong {
+    color: #2c3e50;
+}
+
+.performance-list {
+    max-height: 100px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.performance-list-item {
+    padding: 3px 0;
+    border-bottom: 1px solid #f0f0f0;
+    color: #555;
+}
+
+.performance-list-item:last-child {
+    border-bottom: none;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 1200px) {
+    .performance-stats-controls .filter-controls {
+        gap: 15px;
+    }
+    
+    .venue-search-control input,
+    .sort-control select {
+        min-width: 120px;
+    }
+}
+
+@media (max-width: 768px) {
+    .stats-summary {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .performance-stats-controls .filter-controls {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    .date-range-control,
+    .venue-search-control,
+    .sort-control {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
+    }
+    
+    .venue-search-control input,
+    .sort-control select {
+        width: 100%;
+        min-width: auto;
+    }
+    
+    .venue-summary {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-end;
+    }
+    
+    .venue-details {
+        grid-template-columns: 1fr;
+        gap: 15px;
     }
 }
